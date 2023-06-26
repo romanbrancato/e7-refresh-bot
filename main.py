@@ -1,10 +1,10 @@
+from bot import Bot
 from detection.image_rec import *
 
 
 def main():
-    capture_screen()
-    locate_image_on_screen("refresh_button.png")
-
+    bot = Bot(0,0,5,50)
+    bot.handle_refresh()
 
 if __name__ == '__main__':
     main()

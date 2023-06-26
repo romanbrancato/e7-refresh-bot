@@ -6,7 +6,7 @@ import numpy as np
 from client import *
 
 
-def locate_image_on_screen(reference):
+def locate_image(reference):
     # Take screenshot of screen and load the screenshot
     capture_screen()
     screenshot_path = os.path.expandvars(R"C:\Users\$USERNAME\Documents\XuanZhi9\Pictures\ss.png")
@@ -25,15 +25,15 @@ def locate_image_on_screen(reference):
     # Matches the reference image to the screenshot
     result = cv2.matchTemplate(screen, image, cv2.TM_CCOEFF_NORMED)
 
-    '''Shows area its located'''''
-    threshold = 0.8
-    loc = np.where(result >= threshold)
-    for pt in zip(*loc[::-1]):
-        cv2.rectangle(screen, pt, (pt[0] + w, pt[1] + h), (0, 255, 0), 2)
-
-    cv2.imshow("Detection Result", screen)
-    cv2.waitKey(3000)
-    ''''''''''''''''''''''''''''''
+    # '''Shows area its located'''''
+    # threshold = 0.8
+    # loc = np.where(result >= threshold)
+    # for pt in zip(*loc[::-1]):
+    #     cv2.rectangle(screen, pt, (pt[0] + w, pt[1] + h), (0, 255, 0), 2)
+    #
+    # cv2.imshow("Detection Result", screen)
+    # cv2.waitKey(3000)
+    # ''''''''''''''''''''''''''''''
 
     # Use minMaxLoc to find the position of the best match
     min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
