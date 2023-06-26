@@ -3,13 +3,10 @@ import os
 import cv2
 import numpy as np
 
-from client import *
 
-
-def locate_image(reference):
-    # Take screenshot of screen and load the screenshot
-    capture_screen()
-    screenshot_path = os.path.expandvars(R"C:\Users\$USERNAME\Documents\XuanZhi9\Pictures\ss.png")
+def locate_image(reference, client_index):
+    #  Load the screenshot
+    screenshot_path = os.path.expandvars(R"C:\Users\$USERNAME\Documents\XuanZhi9\Pictures\ss" + client_index + ".png")
     screen = cv2.imread(screenshot_path)
 
     # Load reference image
