@@ -57,7 +57,7 @@ class Bot:
                 counter += 1
 
             if buy_button is None:
-                # Maximum attempts reached, recurse here or perform desired action
+                # Maximum attempts reached, retry
                 print("Retrying Buying Currency")
                 self.buy_currency(currency_type, quantity, attempts)
             else:
@@ -83,7 +83,7 @@ class Bot:
             counter += 1
 
         if confirm_button is None:
-            # Maximum attempts reached, recurse here or perform desired action
+            # Maximum attempts reached, retry
             print("Retrying Refresh")
             self.perform_refresh(attempts)
         else:
