@@ -4,14 +4,14 @@ from detection.image_rec import *
 
 
 class Bot:
-    def __init__(self, client, g, ss, g_limit, ss_limit, bm_target, mm_target):
+    def __init__(self, client, g, g_limit, ss, ss_limit, bm_target, mm_target):
         self.client = client  # Emulator instance
         self.g = g  # Current gold
+        self.g_limit = g_limit  # Gold limit
         self.ss = ss  # Current skystones
-        self.gLimit = g_limit  # Gold limit
-        self.ssLimit = ss_limit  # Skystone limit
-        self.bmTarget = bm_target  # Bookmark target
-        self.mmTarget = mm_target  # Mystic medal target
+        self.ss_limit = ss_limit  # Skystone limit
+        self.bm_target = bm_target  # Bookmark target
+        self.mm_target = mm_target  # Mystic medal target
 
         self.bm = 0  # Number of bookmarks acquired
         self.mm = 0  # Number of mystic medals acquired
@@ -19,8 +19,8 @@ class Bot:
         self.bought_currencies = {"bm": False, "mm": False}  # Track bought currencies
 
     def can_refresh(self):
-        if self.bm < self.bmTarget or self.mm < self.mmTarget:
-            if self.g > self.gLimit and self.ss > self.ssLimit:
+        if self.bm < self.bm_target or self.mm < self.mm_target:
+            if self.g > self.g_limit and self.ss > self.ss_limit:
                 return True
             else:
                 print("Currency Limit Reached")
