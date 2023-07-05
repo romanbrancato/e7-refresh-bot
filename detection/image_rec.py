@@ -43,11 +43,11 @@ def locate_image(reference, client_index):
         # Calculate the center point of the rectangle
         center = ((top_left[0] + bottom_right[0]) // 2, (top_left[1] + bottom_right[1]) // 2)
 
-        print("Found " + os.path.basename(reference))
+        print(os.path.basename(reference) + " found")
 
         return center
 
     else:
-        print("Could not find " + os.path.basename(reference))
+        print(os.path.basename(reference) + " not found")
 
         return None

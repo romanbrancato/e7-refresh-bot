@@ -4,23 +4,28 @@ from detection.image_rec import *
 
 
 class Bot:
-    def __init__(self, client, g, g_limit, ss, ss_limit, bm_target, mm_target):
-        self.client = client  # Emulator instance
-        self.g = g  # Current gold
-        self.g_limit = g_limit  # Gold limit
-        self.ss = ss  # Current skystones
-        self.ss_limit = ss_limit  # Skystone limit
-        self.bm_target = bm_target  # Bookmark target
-        self.mm_target = mm_target  # Mystic medal target
+    BOOKMARK_COST = 184000
+    MYSTIC_MEDAL_COST = 280000
 
-        self.bm = 0  # Number of bookmarks acquired
-        self.mm = 0  # Number of mystic medals acquired
-        self.refreshes = 0  # Number of refreshes done
+    def __init__(self, client, current_gold, gold_limit, current_skystones, skystone_limit, bookmark_target, mystic_medal_target):
+        self.client = client  # Emulator instance
+        self.current_gold = current_gold
+        self.gold_limit = gold_limit
+        self.current_skystones = current_skystones
+        self.skystone_limit = skystone_limit
+        self.bookmark_target = bookmark_target
+        self.mystic_medal_target = mystic_medal_target
+
         self.bought_currencies = {"bm": False, "mm": False}  # Track bought currencies
 
+        self.bookmarks = 0  # Number of bookmarks acquired
+        self.mystic_medals = 0  # Number of mystic medals acquired
+        self.refreshes = 0
+        self.refreshing = False  # Track bot operation status
+
     def can_refresh(self):
-        if self.bm < self.bm_target or self.mm < self.mm_target:
-            if self.g > self.g_limit and self.ss > self.ss_limit:
+        if self.bookmarks < self.bookmark_target or self.mystic_medals < self.mystic_medal_target:
+            if self.current_gold > self.gold_limit and self.current_skystones > self.skystone_limit:
                 return True
             else:
                 print("Currency Limit Reached")
@@ -30,7 +35,7 @@ class Bot:
             return False
 
     def handle_refresh(self, scrolled=False):
-        if self.can_refresh():
+        if self.can_refresh() and self.refreshing:
             if not self.bought_currencies["bm"]:
                 self.buy_currency("bm", 5)
             if not self.bought_currencies["mm"]:
@@ -48,17 +53,17 @@ class Bot:
 
         image_name = f"buy_{currency_type}.png"
         self.client.capture_screen()
-        currency = locate_image(f"{currency_type}.png", self.client.index)
+        currency = locate_image(f"{currency_type}.png", self.client.emulator_index)
         if currency:
             self.client.click_on_location(
                 (currency[0] + 415, currency[1] + 20))  # Location of buy button relative to bm/mm image
-            buy_button = locate_image(image_name, self.client.index)
+            buy_button = locate_image(image_name, self.client.emulator_index)
             counter = 0
 
             while buy_button is None and counter < attempts:
                 sleep(1)
                 self.client.capture_screen()
-                buy_button = locate_image(image_name, self.client.index)
+                buy_button = locate_image(image_name, self.client.emulator_index)
                 counter += 1
 
             if buy_button is None:
@@ -67,26 +72,26 @@ class Bot:
                 self.buy_currency(currency_type, quantity, attempts)
             else:
                 self.client.click_on_location(buy_button)
-                self.g -= 184000 if currency_type == "bm" else 280000  # Subtract currency amount after purchase
+                self.current_gold -= self.BOOKMARK_COST if currency_type == "bm" else self.MYSTIC_MEDAL_COST
                 sleep(1)
 
                 if currency_type == "bm":
-                    self.bm += quantity
+                    self.bookmarks += quantity
                 elif currency_type == "mm":
-                    self.mm += quantity
+                    self.mystic_medals += quantity
 
                 self.bought_currencies[currency_type] = True
 
     def perform_refresh(self, attempts=3):
         self.client.click_on_location((162, 494))  # Refresh button location
         self.client.capture_screen()
-        confirm_button = locate_image("refresh_confirm.png", self.client.index)
+        confirm_button = locate_image("refresh_confirm.png", self.client.emulator_index)
         counter = 0
 
         while confirm_button is None and counter < attempts:
             sleep(1)
             self.client.capture_screen()
-            confirm_button = locate_image("refresh_confirm.png", self.client.index)
+            confirm_button = locate_image("refresh_confirm.png", self.client.emulator_index)
             counter += 1
 
         if confirm_button is None:
@@ -96,6 +101,6 @@ class Bot:
         else:
             self.client.click_on_location(confirm_button)
             self.refreshes += 1
-            self.ss -= 3
+            self.current_skystones -= 3
             self.bought_currencies = {"bm": False, "mm": False}  # Reset bought currencies
             sleep(1)
