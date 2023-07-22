@@ -13,13 +13,13 @@ class Client:
 
         process = subprocess.Popen(adb_args, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         try:
-            output, error = process.communicate(timeout=3)
+            output, error = process.communicate(timeout=5)
             output = output.decode().strip()  # Convert bytes to string and remove leading/trailing whitespace
             return output
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait()
-            print("Command timed out")
+            print("command timed out")
             return None
 
     def capture_screen(self):
