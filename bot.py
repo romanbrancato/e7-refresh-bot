@@ -4,37 +4,29 @@ from detection.image_rec import *
 
 
 class Bot:
-    BOOKMARK_COST = 184000
-    MYSTIC_MEDAL_COST = 280000
     REFRESH_COST = 3
     REFRESH_BUTTON_COORD = (162, 494)
     BUY_BUTTON_COORD = (415, 20)  # Values added to the x and y-axis
 
-    def __init__(self, client, current_gold, gold_limit, current_skystones, skystone_limit, bookmark_target,
-                 mystic_medal_target):
-        self.client = client  # Emulator instance
-        self.current_gold = current_gold
-        self.gold_limit = gold_limit
-        self.current_skystones = current_skystones
-        self.skystone_limit = skystone_limit
+    def __init__(self, client, bookmark_target, mystic_medal_target):
+        self.client = client
         self.bookmark_target = bookmark_target
         self.mystic_medal_target = mystic_medal_target
 
-        self.bought_currencies = {"bm": False, "mm": False}  # Track bought currencies
-
-        self.bookmarks = 0  # Number of bookmarks acquired
-        self.mystic_medals = 0  # Number of mystic medals acquired
+        self.bought_currencies = {"bm": False, "mm": False}
+        self.bookmarks = 0
+        self.mystic_medals = 0
         self.refreshes = 0
-        self.scrolled = False  # Track scroll state
-        self.refreshing = False  # Track bot operation status
+        self.scrolled = False
+        self.refreshing = False
 
     def can_refresh(self):
-        if self.bookmarks < self.bookmark_target or self.mystic_medals < self.mystic_medal_target:
-            if self.current_gold > self.gold_limit and self.current_skystones > self.skystone_limit:
-                return True
-            else:
-                print("Currency Limit Reached")
-                return False
+        # Check for insufficient currency pop-ups before this
+
+        if self.bookmark_target == 0 and self.mystic_medal_target == 0:
+            return True
+        elif self.bookmarks < self.bookmark_target or self.mystic_medals < self.mystic_medal_target:
+            return True
         else:
             print("Obtained Desired Number of Currency")
             return False
@@ -53,6 +45,7 @@ class Bot:
                 else:
                     self.client.scroll_down()
                     print("scrolled down")
+
                 self.scrolled = not self.scrolled
             else:
                 self.refreshing = False
@@ -63,8 +56,9 @@ class Bot:
         currency = locate_image(f"{currency_type}.png", self.client.emulator_index)
 
         if currency:
-            max_tries_before_recalculate = 3
-            try_count = 0
+            # Image Detection can be too fast resulting in bad coordinates for buy button
+            tries_before_recalculate = 3
+            tries = 0
 
             while True:
                 # Calculate the buy button coordinates relative to the currency's position
@@ -79,12 +73,12 @@ class Bot:
                 if buy_confirm:
                     break
                 else:
-                    try_count += 1
-                    if try_count >= max_tries_before_recalculate:
+                    tries += 1
+                    if tries >= tries_before_recalculate:
                         # Recalculate the currency position
                         self.client.capture_screen()
                         currency = locate_image(f"{currency_type}.png", self.client.emulator_index)
-                        try_count = 0
+                        tries = 0
 
             while buy_confirm:
                 self.client.click_on_location(buy_confirm)
@@ -92,8 +86,6 @@ class Bot:
                 # Check if currency has successfully been bought
                 self.client.capture_screen()
                 buy_confirm = locate_image(image_name, self.client.emulator_index)
-
-            self.current_gold -= self.BOOKMARK_COST if currency_type == "bm" else self.MYSTIC_MEDAL_COST
 
             if currency_type == "bm":
                 self.bookmarks += quantity
@@ -120,5 +112,4 @@ class Bot:
             refresh_confirm = locate_image("refresh_confirm.png", self.client.emulator_index)
 
         self.refreshes += 1
-        self.current_skystones -= self.REFRESH_COST
         self.bought_currencies = {"bm": False, "mm": False}  # Reset bought currencies
