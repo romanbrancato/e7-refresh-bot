@@ -11,7 +11,7 @@ class App:
 
         self.root = customtkinter.CTk()
         self.root.resizable(False, False)
-        self.root.iconbitmap("detection\\reference_images\\covenant_bookmark.ico")
+        self.root.iconbitmap("detection\\images\\covenant_bookmark.ico")
         self.root.title("e7 Refresh Bot")
 
         self.table_frame = customtkinter.CTkFrame(self.root)
@@ -119,7 +119,8 @@ class Row:
         self.thread = None
 
         self.update_interval = 100
-        self.update_labels()
+        self.refresh_state = self.bot.refreshing
+        self.update_gui()
 
     def create_columns(self):
         for i in range(6):
@@ -141,7 +142,7 @@ class Row:
         if self.bot.refreshing:
             self.bot.refreshing = False
             self.thread.join()
-            self.parent_frame.after_cancel(self.update_labels)
+            self.parent_frame.after_cancel(self.update_gui)
         self.delete_callback(self)
 
     def toggle_bot_status(self):
@@ -152,26 +153,21 @@ class Row:
         if self.bot.refreshing:
             self.bot.refreshing = False
             self.thread.join()
-            self.parent_frame.after_cancel(self.update_labels)
+            self.parent_frame.after_cancel(self.update_gui)
             self.thread = None
 
         else:
             self.bot.refreshing = True
             self.thread.start()
-            self.update_labels()
+            self.update_gui()
 
-        # Update the button's color and text based on the bot status
-        button_color = "red" if self.bot.refreshing else ["#2CC985", "#2FA572"]
-        button_text = "Stop" if self.bot.refreshing else "Refresh"
-        button_hover = "maroon" if self.bot.refreshing else ["#0C955A", "#106A43"]
-        self.columns[4].configure(text=button_text, fg_color=button_color, hover_color=button_hover)
+    def update_gui(self):
 
-    def update_labels(self):
         values = [
             self.bot.client.emulator_index,
-            str(self.bot.bookmarks),
+            str(self.bot.currencies["bm"]["count"]),
             str(self.bot.bookmark_target),
-            str(self.bot.mystic_medals),
+            str(self.bot.currencies["mm"]["count"]),
             str(self.bot.mystic_medal_target),
             str(self.bot.refreshes)
         ]
@@ -187,7 +183,14 @@ class Row:
             label = self.columns[i]
             label.configure(text=label_mappings[i]())
 
-        self.parent_frame.after(self.update_interval, self.update_labels)
+        if self.refresh_state is not self.bot.refreshing:
+            button_color = "red" if self.bot.refreshing else ["#2CC985", "#2FA572"]
+            button_text = "Stop" if self.bot.refreshing else "Refresh"
+            button_hover = "maroon" if self.bot.refreshing else ["#0C955A", "#106A43"]
+            self.columns[4].configure(text=button_text, fg_color=button_color, hover_color=button_hover)
+            self.refresh_state = self.bot.refreshing
+
+        self.parent_frame.after(self.update_interval, self.update_gui)
 
 
 app = App()

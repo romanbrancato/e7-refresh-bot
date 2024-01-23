@@ -10,7 +10,7 @@ def locate_image(reference, client_index):
     screen = cv2.imread(screenshot_path)
 
     # Load reference image
-    reference_path = "detection\\reference_images\\" + reference
+    reference_path = "detection\\images\\" + reference
     image = cv2.imread(reference_path)
 
     # Get dimensions of reference image
