@@ -1,12 +1,12 @@
 import os
-
 import cv2
 import numpy as np
 
 
 def locate_image(reference, client_index):
     #  Load the screenshot
-    screenshot_path = os.path.expandvars(R"C:\Users\$USERNAME\Documents\XuanZhi9\Pictures\ss" + client_index + ".png")
+    screenshot_path = os.path.expandvars(
+        os.path.join(os.path.expanduser('~'), 'Documents', 'XuanZhi9', 'Pictures', f'ss{client_index}.png'))
     screen = cv2.imread(screenshot_path)
 
     # Load reference image
@@ -43,11 +43,11 @@ def locate_image(reference, client_index):
         # Calculate the center point of the rectangle
         center = ((top_left[0] + bottom_right[0]) // 2, (top_left[1] + bottom_right[1]) // 2)
 
-        print(os.path.basename(reference) + " found")
+        print(f'{os.path.basename(reference)} found')
 
         return center
 
     else:
-        print(os.path.basename(reference) + " not found")
+        print(f'{os.path.basename(reference)} not found')
 
         return None

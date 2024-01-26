@@ -31,13 +31,13 @@ class App:
 
 class Table:
     COLUMN_LABELS = [
-        "LDPlayer Index",
+        "Instance Index",
         "Bookmarks/Target",
         "Mystic Medals/Target",
         "Refreshes"
     ]
     ENTRY_TEXT = [
-        "LDPLayer Index",
+        "Instance Index",
         "Bookmark Target",
         "Mystic Medal Target"
     ]
@@ -46,33 +46,14 @@ class Table:
         self.parent_frame = parent_frame
         self.app = app
         self.rows = []
-        self.row_counter = 1
+        self.row_counter = len(self.rows) + 1
 
         for i, text in enumerate(self.COLUMN_LABELS):
             label = customtkinter.CTkLabel(self.parent_frame, text=text)
             label.grid(row=0, column=i + 1, padx=5, sticky="w")
-        self.create_last_row()
+        self.add_emulator_row()
 
-    def add_emulator(self):
-        values = self.get_values()
-
-        # Create client, bot, and thread instances
-        client = Client(values[0])
-        bot = Bot(client, values[1], values[2])
-
-        # Create a new row
-        new_row = Row(self.parent_frame, self.row_counter, bot, self.delete_row)
-        self.rows.append(new_row)
-        self.row_counter = len(self.rows)
-
-        # Shift contents of last row down
-        for i, row_item in enumerate(self.rows[:4]):
-            row_item.grid(row=self.row_counter)
-
-        # Update the app's geometry to accommodate new row
-        self.app.update_window_geometry()
-
-    def create_last_row(self):
+    def add_emulator_row(self):
         add_emulator_button = customtkinter.CTkButton(self.parent_frame, text="Add Emulator", command=self.add_emulator)
         add_emulator_button.grid(row=self.row_counter, column=5, padx=5, pady=5)
         self.rows.append(add_emulator_button)
@@ -82,15 +63,40 @@ class Table:
             entry.grid(row=self.row_counter, column=i + 1, padx=5, sticky="w")
             self.rows.append(entry)
 
+    def add_emulator(self):
+        values = self.get_values()
+
+        # Create client and bot instances
+        client = Client(str(values[0]))
+        bot = Bot(client, values[1], values[2])
+
+        # Create new row
+        new_row = Row(self.parent_frame, self.row_counter, bot, self.delete_row)
+        self.rows.append(new_row)
+        self.row_counter = len(self.rows)
+
+        # Shift contents of last row down
+        for row_item in self.rows[:4]:
+            row_item.grid(row=self.row_counter)
+
+        # Update the app's geometry to accommodate new row
+        self.app.update_window_geometry()
+
     def get_values(self):
         entry_values = [entry.get() for entry in self.rows if isinstance(entry, customtkinter.CTkEntry)]
 
-        index, bm_target, mm_target = entry_values[-3:]
+        values = []
 
-        bm_target = int(bm_target) if bm_target != '' else 0
-        mm_target = int(mm_target) if mm_target != '' else 0
+        for value, name in zip(entry_values[-3:], ['Index', 'Bookmark Target', 'Mystic Medal Target']):
+            try:
+                val = int(value) if value != '' else 0
+                if val < 0:
+                    raise ValueError
+                values.append(val)
+            except ValueError:
+                raise ValueError(f"{name} must be a non-negative integer.")
 
-        return [index, bm_target, mm_target]
+        return values
 
     def delete_row(self, row):
         # Remove the row from the list
@@ -120,7 +126,7 @@ class Row:
 
         self.update_interval = 100
         self.refresh_state = self.bot.refreshing
-        self.update_gui()
+        self.update_row()
 
     def create_columns(self):
         for i in range(6):
@@ -142,7 +148,7 @@ class Row:
         if self.bot.refreshing:
             self.bot.refreshing = False
             self.thread.join()
-            self.parent_frame.after_cancel(self.update_gui)
+            self.parent_frame.after_cancel(self.update_row)
         self.delete_callback(self)
 
     def toggle_bot_status(self):
@@ -153,15 +159,15 @@ class Row:
         if self.bot.refreshing:
             self.bot.refreshing = False
             self.thread.join()
-            self.parent_frame.after_cancel(self.update_gui)
+            self.parent_frame.after_cancel(self.update_row)
             self.thread = None
 
         else:
             self.bot.refreshing = True
             self.thread.start()
-            self.update_gui()
+            self.update_row()
 
-    def update_gui(self):
+    def update_row(self):
 
         values = [
             self.bot.client.emulator_index,
@@ -190,7 +196,7 @@ class Row:
             self.columns[4].configure(text=button_text, fg_color=button_color, hover_color=button_hover)
             self.refresh_state = self.bot.refreshing
 
-        self.parent_frame.after(self.update_interval, self.update_gui)
+        self.parent_frame.after(self.update_interval, self.update_row)
 
 
 app = App()
