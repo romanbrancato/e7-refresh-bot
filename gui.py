@@ -1,7 +1,7 @@
 import threading
 import customtkinter
 from bot import Bot
-from client import Client
+from ldplayer.client import Client
 
 
 class App:
@@ -17,8 +17,6 @@ class App:
         self.table_frame = customtkinter.CTkFrame(self.root)
         self.table_frame.pack(fill=customtkinter.BOTH, expand=True)
         self.table = Table(self.table_frame, self)
-
-        self.update_window_geometry()
 
         self.root.mainloop()
 
@@ -64,11 +62,9 @@ class Table:
             self.rows.append(entry)
 
     def add_emulator(self):
-        values = self.get_values()
-
         # Create client and bot instances
-        client = Client(str(values[0]))
-        bot = Bot(client, values[1], values[2])
+        client = Client(str(self.get_values()[0]))
+        bot = Bot(client, *self.get_values()[1:3])
 
         # Create new row
         new_row = Row(self.parent_frame, self.row_counter, bot, self.delete_row)
@@ -83,32 +79,24 @@ class Table:
         self.app.update_window_geometry()
 
     def get_values(self):
-        entry_values = [entry.get() for entry in self.rows if isinstance(entry, customtkinter.CTkEntry)]
+        entry_values = [int(entry.get()) if entry.get() != '' else 0 for entry in self.rows if
+                        isinstance(entry, customtkinter.CTkEntry)][-3:]
 
-        values = []
-
-        for value, name in zip(entry_values[-3:], ['Index', 'Bookmark Target', 'Mystic Medal Target']):
-            try:
-                val = int(value) if value != '' else 0
-                if val < 0:
-                    raise ValueError
-                values.append(val)
-            except ValueError:
+        for value, name in zip(entry_values, ['Index', 'Bookmark Target', 'Mystic Medal Target']):
+            if value < 0:
                 raise ValueError(f"{name} must be a non-negative integer.")
 
-        return values
+        return entry_values
 
     def delete_row(self, row):
-        # Remove the row from the list
         self.rows.remove(row)
 
         # Destroy the row's widgets
         for widget in row.columns:
-            widget.destroy()
+            widget.destroy() if widget.winfo_exists() else None
 
+        row.columns.clear()
         self.row_counter = len(self.rows)
-
-        # Update the app's geometry
         self.app.update_window_geometry()
 
 
@@ -168,31 +156,21 @@ class Row:
             self.update_row()
 
     def update_row(self):
-
         values = [
             self.bot.client.emulator_index,
-            str(self.bot.currencies["bm"]["count"]),
-            str(self.bot.bookmark_target),
-            str(self.bot.currencies["mm"]["count"]),
-            str(self.bot.mystic_medal_target),
-            str(self.bot.refreshes)
+            f"{self.bot.currencies['bm']['count']}/{self.bot.bookmark_target}",
+            f"{self.bot.currencies['mm']['count']}/{self.bot.mystic_medal_target}",
+            self.bot.refreshes
         ]
 
-        label_mappings = {
-            0: lambda: values[0],
-            1: lambda: f"{values[1]}/{values[2]}",
-            2: lambda: f"{values[3]}/{values[4]}",
-            3: lambda: values[5]
-        }
+        button_color, button_text, button_hover = ("red", "Stop", "maroon") if self.bot.refreshing else (
+            ["#2CC985", "#2FA572"], "Refresh", ["#0C955A", "#106A43"]
+        )
 
-        for i in range(4):
-            label = self.columns[i]
-            label.configure(text=label_mappings[i]())
+        for i, label in enumerate(self.columns[:4]):
+            label.configure(text=values[i])
 
         if self.refresh_state is not self.bot.refreshing:
-            button_color = "red" if self.bot.refreshing else ["#2CC985", "#2FA572"]
-            button_text = "Stop" if self.bot.refreshing else "Refresh"
-            button_hover = "maroon" if self.bot.refreshing else ["#0C955A", "#106A43"]
             self.columns[4].configure(text=button_text, fg_color=button_color, hover_color=button_hover)
             self.refresh_state = self.bot.refreshing
 

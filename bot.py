@@ -1,10 +1,8 @@
 from time import sleep
-
 from detection.image_rec import *
 
 
 class Bot:
-    REFRESH_COST = 3
     REFRESH_BUTTON_COORD = (162, 494)
     BUY_BUTTON_COORD = (415, 20)  # Values added to the x and y-axis
     DELAY = 0.3
@@ -15,7 +13,7 @@ class Bot:
         self.mystic_medal_target = mystic_medal_target
 
         self.currencies = {"bm": {"quantity": 5, "count": 0, "bought": False},
-                           "mm": {"quantity": 5, "count": 0, "bought": False}}
+                           "mm": {"quantity": 50, "count": 0, "bought": False}}
         self.refreshes = 0
         self.scrolled = False
         self.refreshing = False
@@ -46,7 +44,7 @@ class Bot:
                 buy_confirm = locate_image(f"buy_{currency}.png", self.client.emulator_index)
                 if buy_confirm:
                     while buy_confirm and self.refreshing:
-                        self.client.click_on_location(buy_confirm)
+                        self.client.click(buy_confirm)
                         sleep(self.DELAY)
                         self.client.capture_screen()
 
@@ -66,32 +64,33 @@ class Bot:
                 if currency_location:
                     buy_button_x = currency_location[0] + self.BUY_BUTTON_COORD[0]
                     buy_button_y = currency_location[1] + self.BUY_BUTTON_COORD[1]
-                    self.client.click_on_location((buy_button_x, buy_button_y))
+                    self.client.click((buy_button_x, buy_button_y))
                     sleep(self.DELAY)
                 else:
                     break
 
     def perform_refresh(self):
-        refresh_confirm = None
-
-        while not refresh_confirm and self.refreshing:
-            self.client.click_on_location(self.REFRESH_BUTTON_COORD)
-            sleep(self.DELAY)
-            self.client.capture_screen()
+        while self.refreshing:
             refresh_confirm = locate_image("refresh_confirm.png", self.client.emulator_index)
+            if refresh_confirm:
+                while refresh_confirm and self.refreshing:
+                    self.client.click(refresh_confirm)
+                    sleep(self.DELAY)
+                    self.client.capture_screen()
 
-        while refresh_confirm and self.refreshing:
-            self.client.click_on_location(refresh_confirm)
-            sleep(self.DELAY)
-            self.client.capture_screen()
-            insufficient_ss = locate_image("insufficient_ss.png", self.client.emulator_index)
-            if insufficient_ss:
-                print("Insufficient Skystones, Cannot Refresh")
-                self.refreshing = False
+                    insufficient_ss = locate_image("insufficient_ss.png", self.client.emulator_index)
+                    if insufficient_ss:
+                        print("Insufficient Skystones, Cannot Refresh")
+                        self.refreshing = False
+                        return
+
+                    refresh_confirm = locate_image("refresh_confirm.png", self.client.emulator_index)
+
+                self.refreshes += 1
+                for currency, info in self.currencies.items():
+                    info["bought"] = False
                 return
-            refresh_confirm = locate_image("refresh_confirm.png", self.client.emulator_index)
 
-        self.refreshes += 1
-
-        for currency, info in self.currencies.items():
-            info["bought"] = False
+            self.client.click(self.REFRESH_BUTTON_COORD)
+            sleep(self.DELAY)
+            self.client.capture_screen()
