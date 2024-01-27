@@ -1,10 +1,9 @@
 import os
 import cv2
-import numpy as np
 
 
 def locate_image(reference, client_index):
-    #  Load the screenshot
+    #  Load screenshot
     screenshot_path = os.path.expandvars(
         os.path.join(os.path.expanduser('~'), 'Documents', 'XuanZhi9', 'Pictures', f'ss{client_index}.png'))
     screen = cv2.imread(screenshot_path)
@@ -32,22 +31,17 @@ def locate_image(reference, client_index):
     # cv2.waitKey(3000)
     # ''''''''''''''''''''''''''''''
 
-    # Use minMaxLoc to find the position of the best match
-    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+    # Find the position of the best match
+    _, max_val, _, max_loc = cv2.minMaxLoc(result)
 
+    # Calculate the center point of the matched rectangle
     if max_val > 0.90:
-        # Get the top-left and bottom-right coordinates of the rectangle
         top_left = max_loc
         bottom_right = (top_left[0] + w, top_left[1] + h)
-
-        # Calculate the center point of the rectangle
         center = ((top_left[0] + bottom_right[0]) // 2, (top_left[1] + bottom_right[1]) // 2)
-
         print(f'{os.path.basename(reference)} found')
-
         return center
 
     else:
         print(f'{os.path.basename(reference)} not found')
-
         return None
