@@ -1,7 +1,11 @@
 import sys
 
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
-from PyQt6.QtWidgets import *
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
+from PyQt6.QtWidgets import (
+    QApplication, QWidget, QVBoxLayout, QTabWidget, QPushButton, QLabel,
+    QTextBrowser, QInputDialog, QMessageBox, QLineEdit, QCheckBox, QFormLayout,
+    QHBoxLayout, QFrame, QRadioButton, QButtonGroup, QGridLayout
+)
 from PyQt6.QtGui import QIcon, QIntValidator
 
 from bot import Bot
@@ -220,7 +224,8 @@ class EmulatorTab(QWidget):
             self.goldInput.setText(currencies[0])
             self.ssInput.setText(currencies[1])
         else:
-            self.logTextBrowser.append("Scan Failed: Currencies not found")
+            self.logTextBrowser.append("Scan Failed:")
+            self.logTextBrowser.append("    Currencies not found")
 
     def change_option(self):
         button_id = self.radio_button_group.checkedId()
@@ -234,6 +239,7 @@ class EmulatorTab(QWidget):
     def toggle_bot(self):
         # Start Refreshing
         if not self.refreshing:
+
             self.bot = Bot(self.client, self.get_values())
 
             self.worker_thread = worker(self.bot)
@@ -243,19 +249,25 @@ class EmulatorTab(QWidget):
             # Start the thread
             self.worker_thread.start()
 
-            self.logTextBrowser.clear()
+            # Timer to update log
             self.update_log()
+            self.timer = QTimer(self)
+            self.timer.timeout.connect(self.update_log)
+            self.timer.start(100)
 
             self.refresh_button.setText('Stop')
 
         # Stop Refreshing
         else:
             self.worker_thread.terminate()
+            self.timer.stop()
             if self.worker_thread.exception:
                 self.logTextBrowser.append('Stopped'.center((self.logTextBrowser.width() // 8), "="))
                 self.logTextBrowser.append(str(self.worker_thread.exception))
             else:
                 self.logTextBrowser.append('Finished'.center((self.logTextBrowser.width() // 8), "="))
+            self.logTextBrowser.append(f'Gold Spent: {self.bot.gold_start - self.bot.gold}')
+            self.logTextBrowser.append(f'Skystones Spent: {self.bot.ss_start - self.bot.ss}')
 
             self.refresh_button.setText('Refresh')
 
@@ -269,24 +281,29 @@ class EmulatorTab(QWidget):
         self.goldInput.setText(str(self.bot.gold))
         self.ssInput.setText(str(self.bot.ss))
         self.logTextBrowser.clear()
-        stats = [
-            'Refreshing'.center((self.logTextBrowser.width() // 8), "="),
-            f'Bookmarks: {self.bot.currencies["bm"]["count"]}/{self.bot.bookmark_target}',
-            f'Mystic Medals: {self.bot.currencies["mm"]["count"]}/{self.bot.mystic_medal_target}',
-            f'Refreshes: {self.bot.refreshes}'
-        ]
+        self.logTextBrowser.append('Refreshing'.center(self.logTextBrowser.width() // 8, "="))
 
-        self.logTextBrowser.append('\n'.join(stats))
+        bm_count = self.bot.currencies["bm"]["count"]
+        mm_count = self.bot.currencies["mm"]["count"]
+        stop_currency = self.bot.stop_condition["currency"]
+        stop_amount = self.bot.stop_condition["amount"]
+
+        bookmarks_str = f'Bookmarks: {bm_count}/{stop_amount}' if stop_currency == "bm" and stop_amount != 0 else f'Bookmarks: {bm_count}'
+        mystic_medals_str = f'Mystic Medals: {mm_count}/{stop_amount}' if stop_currency == "mm" and stop_amount != 0 else f'Mystic Medals: {mm_count}'
+
+        self.logTextBrowser.append(bookmarks_str)
+        self.logTextBrowser.append(mystic_medals_str)
+        self.logTextBrowser.append(f'Refreshes: {self.bot.refreshes}')
 
     def get_values(self):
+        stop_condition = self.radio_button_group.checkedId()
+        currency = "bm" if stop_condition == 0 else "mm" if stop_condition == 1 else "ss"
+        amount = self.bmTargetInput.text() if stop_condition == 0 else self.mmTargetInput.text() if stop_condition == 1 else self.ssLimitInput.text()
         return {
             "gold": int(self.goldInput.text() or 0),
             "ss": int(self.ssInput.text() or 0),
             "auto_dispatch": self.dispatch_checkbox.isChecked(),
-            "bm_target": int(self.bmTargetInput.text() or 0),
-            "mm_target": int(self.mmTargetInput.text() or 0),
-            "ss_limit": int(self.ssLimitInput.text() or 0),
-            "selected_option": int(self.radio_button_group.checkedId())
+            "stop_condition": {"currency": currency, "amount": int(amount or 0)}
         }
 
 
@@ -297,7 +314,6 @@ class worker(QThread):
     def __init__(self, bot):
         super().__init__()
         self.bot = bot
-        self.bot.log_callback = self.log
         self.exception = None
 
     def run(self):

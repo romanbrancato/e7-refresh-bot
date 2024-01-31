@@ -1,5 +1,4 @@
 import aircv as ac
-import cv2
 import easyocr
 
 
@@ -9,7 +8,6 @@ def locate_image(screenshot, reference):
 
 
 def scan(ss):
-    # Define the percentage of the ss height save
     crop_value = 8  # 8% of ss height
     height = int(ss.shape[0] * (crop_value / 100))
 
@@ -30,7 +28,7 @@ def scan(ss):
         rect_ss = result_ss['rectangle']
         rect_bag = result_bag['rectangle']
 
-        # Crop the image to isolate the region between the two symbols
+        # Crop the image to isolate the region between the two icons
         roi_gold = cropped_ss[:, rect_gold[0][0]:rect_ss[2][0]]
         roi_ss = cropped_ss[:, rect_ss[0][0]:rect_bag[2][0]]
 
