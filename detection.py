@@ -18,11 +18,12 @@ def scan(ss):
     ss_img = ac.imread('images/ss.png')
     bag_img = ac.imread('images/bag.png')
 
-    result_gold = ac.find_template(cropped_ss, gold_img)
-    result_ss = ac.find_template(cropped_ss, ss_img)
-    result_bag = ac.find_template(cropped_ss, bag_img)
+    result_gold = ac.find_template(cropped_ss, gold_img, 0.90)
+    result_ss = ac.find_template(cropped_ss, ss_img, 0.90)
+    result_bag = ac.find_template(cropped_ss, bag_img, 0.90)
 
     if result_gold is not None and result_ss is not None:
+
         # Get the rectangles from the results
         rect_gold = result_gold['rectangle']
         rect_ss = result_ss['rectangle']

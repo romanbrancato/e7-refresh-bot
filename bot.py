@@ -5,10 +5,10 @@ from detection import *
 class Bot:
     REFRESH_BUTTON_COORD = (162, 494)
     BUY_BUTTON_COORD = (415, 20)  # Values added to x and y of currency image location
-    DELAY = 0.3
 
-    def __init__(self, client, values):
+    def __init__(self, client, delay, values):
         self.client = client
+        self.delay = delay
         self.gold = self.gold_start = values["gold"]
         self.ss = self.ss_start = values["ss"]
         self.auto_dispatch = values["auto_dispatch"]
@@ -24,7 +24,7 @@ class Bot:
             self.locate_and_buy()
             self.perform_refresh() if self.scrolled else self.client.scroll_down()
             self.scrolled = not self.scrolled
-            sleep(self.DELAY)
+            sleep(self.delay)
 
     def continue_refreshing(self):
         if self.gold >= 184000 and self.ss >= 3:
@@ -47,7 +47,7 @@ class Bot:
                 if buy_confirm:
                     while buy_confirm:
                         self.client.click(buy_confirm)
-                        sleep(self.DELAY)
+                        sleep(self.delay)
                         screenshot = self.client.capture_screen()
 
                         insufficient_gold = locate_image(screenshot, "insufficient_gold.png")
@@ -66,20 +66,20 @@ class Bot:
                     buy_button_x = currency_location[0] + self.BUY_BUTTON_COORD[0]
                     buy_button_y = currency_location[1] + self.BUY_BUTTON_COORD[1]
                     self.client.click((buy_button_x, buy_button_y))
-                    sleep(self.DELAY)
+                    sleep(self.delay)
                 else:
                     break
 
     def perform_refresh(self):
         while True:
             self.client.click(self.REFRESH_BUTTON_COORD)
-            sleep(self.DELAY)
+            sleep(self.delay)
             screenshot = self.client.capture_screen()
             refresh_confirm = locate_image(screenshot, "refresh_confirm.png")
             if refresh_confirm:
                 while refresh_confirm:
                     self.client.click(refresh_confirm)
-                    sleep(self.DELAY)
+                    sleep(self.delay)
                     screenshot = self.client.capture_screen()
 
                     insufficient_ss = locate_image(screenshot, "insufficient_ss.png")

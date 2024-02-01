@@ -4,34 +4,30 @@ from numpy import asarray
 
 # Must enable open local/remote connection for adb debugging in emulator settings
 
-# adb_connect_all and adb_disconnect_all assume that all emulator addresses have an ip of 127.0.0.1 and a port
-# pattern of (5555 + index * 2) (according to LDPlayer themselves) If this were to be made to work on other emulators
-# ensure that the above rule is true
+# The following functions are tailored for ldplayer as adb.device_list() always returns ld devices serials as
+# emulator-####. However, connecting using that is much slower than parsing the port then connecting directly to the
+# address 1 port above it. If this were to be changed to be used with other emulators: adb.connect(device.serial)
 def adb_connect_all():
     connected_devices = []
-    device_list = adb.device_list()
-    if device_list:
-        last_device_port = int(device_list[-1].serial[-4:]) + 1
-        for port in range(5555, last_device_port + 2, 2):
-            try:
-                adb.connect(f"127.0.0.1:{port}", timeout=1)
-                connected_devices.append(f"127.0.0.1:{port}")
-            except AdbTimeout as e:
-                print(e)
+    for device in adb.device_list():
+        try:
+            port = int(device.serial[-4:]) + 1
+            adb.connect(f"127.0.0.1:{port}", timeout=1)
+            connected_devices.append(f"127.0.0.1:{port}")
+        except AdbTimeout as e:
+            print(e)
     return connected_devices
 
 
 def adb_disconnect_all():
     disconnected_devices = []
-    device_list = adb.device_list()
-    if device_list:
-        last_device_port = int(device_list[-1].serial[-4:]) + 1
-        for port in range(5555, last_device_port + 2, 2):
-            try:
-                adb.disconnect(f"127.0.0.1:{port}", raise_error=True)
-                disconnected_devices.append(f"127.0.0.1:{port}")
-            except AdbError as e:
-                print(e)
+    for device in adb.device_list():
+        try:
+            port = int(device.serial[-4:]) + 1
+            adb.disconnect(f"127.0.0.1:{port}")
+            disconnected_devices.append(f"127.0.0.1:{port}")
+        except AdbError as e:
+            print(e)
     return disconnected_devices
 
 
