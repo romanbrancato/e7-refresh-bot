@@ -6,32 +6,39 @@ from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QTabWidget, QPushButton, QLabel,
     QTextBrowser, QInputDialog, QMessageBox, QLineEdit, QCheckBox, QFormLayout,
-    QHBoxLayout, QFrame, QRadioButton, QButtonGroup, QGridLayout, QDoubleSpinBox
+    QHBoxLayout, QFrame, QRadioButton, QButtonGroup, QGridLayout, QDoubleSpinBox, QTabBar
 )
 from PyQt6.QtGui import QIcon, QIntValidator
 
 from bot import Bot
-from client import Client, adb_connect_all, adb_disconnect_all
+from client import Client, connect_all, disconnect_all
 from detection import scan
 
 
-class MyWindow(QWidget):
+class Window(QWidget):
     def __init__(self):
         super().__init__()
 
         self.active_devices = []
 
-        self.init_ui()
-
-    def init_ui(self):
         main_layout = QVBoxLayout(self)
 
+        # Tab Widget
         self.tab_widget = QTabWidget(self)
+        self.tab_widget.setTabsClosable(True)
+        self.tab_widget.tabBar().setMovable(True)
+        self.tab_widget.tabBar().tabCloseRequested.connect(self.close_tab)
         main_layout.addWidget(self.tab_widget)
 
         # Info Tab
         info_tab = InfoTab(self.update_delay)
         self.tab_widget.addTab(info_tab, 'Info')
+        # Makes info tab unable to be closed
+        info_tab_index = self.tab_widget.indexOf(info_tab)
+        close_button = self.tab_widget.tabBar().tabButton(info_tab_index, QTabBar.ButtonPosition.RightSide)
+        if close_button:
+            close_button.resize(0, 0)
+
         self.tab_widget.setGeometry(5, 5, 300, 490)
 
         # Add emulator button
@@ -40,7 +47,7 @@ class MyWindow(QWidget):
         main_layout.addWidget(add_emulator_button)
 
         # Window Properties
-        self.resize(316, 460)
+        self.resize(316, 515)
         self.setWindowTitle('e7 Refresh Bot')
         icon_path = 'images\\covenant_bookmark.ico'
         self.setWindowIcon(QIcon(icon_path))
@@ -49,7 +56,7 @@ class MyWindow(QWidget):
 
     def add_emulator_button_event(self):
         # Get the list of connected emulators
-        emulator_list = adb_connect_all()
+        emulator_list = connect_all()
         emulator_list = [emulator for emulator in emulator_list if emulator not in self.active_devices]
         if not emulator_list:
             # If no emulators are running
@@ -63,7 +70,7 @@ class MyWindow(QWidget):
                 # Create client instance
                 client = Client(emulator)
                 # Create a new tab
-                new_tab = EmulatorTab(client, self.delete_tab)
+                new_tab = EmulatorTab(client)
                 # Insert the new tab
                 self.tab_widget.insertTab(0, new_tab, f'{emulator}')
                 # Focus on the new tab
@@ -79,12 +86,16 @@ class MyWindow(QWidget):
                 if tab.bot:
                     tab.bot.delay = delay
 
-    def delete_tab(self, client):
-        self.active_devices.remove(client.address)
-        self.tab_widget.removeTab(self.tab_widget.currentIndex())
+    def close_tab(self, index):
+        tab = self.tab_widget.widget(index)
+        if tab.worker_thread and tab.worker_thread.isRunning():
+            tab.worker_thread.terminate()
+        tab.client.disconnect()
+        self.active_devices.remove(tab.client.address)
+        self.tab_widget.removeTab(index)
 
     def closeEvent(self, event):
-        adb_disconnect_all()
+        disconnect_all()
         event.accept()
 
 
@@ -102,11 +113,11 @@ class InfoTab(QWidget):
             "(Currently only supports LDPlayer)\n\n"
             "Notes:\n\n"
             "For the bot to work:\n"
-            "- Resolution: 960x540(dpi 160)\n"
-            "- ADB debugging: Open local connection\n"
-            "- Preferably enable 'Fixed Window Size'\n\n"
-            "* Emulators will appear as their adb serial i.e an LDPLayer instance at index 0 will appear as 127.0.0.1:5555\n\n"
-            "* If you notice the bot missing currencies due to lag, increase the delay (0.3 is default)")
+            "| Resolution: 960x540(dpi 160)\n"
+            "| ADB debugging: Open local connection\n"
+            "| Preferably enable 'Fixed Window Size'\n\n"
+            "Emulators will appear as their adb serial e.g. an LDPLayer instance at index 0 will appear as 127.0.0.1:5555\n\n"
+            "If you notice the bot missing currencies due to lag, increase the delay (0.3 is default)")
         info_layout.addWidget(self.info_text_field)
 
         # Delay Setting
@@ -138,10 +149,9 @@ class InfoTab(QWidget):
 
 
 class EmulatorTab(QWidget):
-    def __init__(self, client, delete_callback):
+    def __init__(self, client):
         super().__init__()
         self.client = client
-        self.delete_callback = delete_callback
 
         self.bot = None
         self.delay = 0.3
@@ -191,7 +201,7 @@ class EmulatorTab(QWidget):
         option_layout.setContentsMargins(45, 0, 45, 0)
 
         # Check Box
-        self.dispatch_checkbox = QCheckBox('Auto Dispatch Retry', self)
+        self.gear_checkbox = QCheckBox('Pause on Red 85 Gear', self)
 
         # Radio Buttons
         self.radio_button_group = QButtonGroup(self)
@@ -224,13 +234,13 @@ class EmulatorTab(QWidget):
         self.ssLimitInput.setAlignment(Qt.AlignmentFlag.AlignRight)
         self.ssLimitInput.setPlaceholderText('Limit')
 
-        option_layout.addWidget(self.dispatch_checkbox, 0, 0, 1, 2)
-        option_layout.addWidget(self.bmButton, 1, 0)
-        option_layout.addWidget(self.bmTargetInput, 1, 1)
-        option_layout.addWidget(self.mmButton, 2, 0)
-        option_layout.addWidget(self.mmTargetInput, 2, 1)
-        option_layout.addWidget(self.ssButton, 3, 0)
-        option_layout.addWidget(self.ssLimitInput, 3, 1)
+        option_layout.addWidget(self.gear_checkbox, 1, 0, 1, 2)
+        option_layout.addWidget(self.bmButton, 2, 0)
+        option_layout.addWidget(self.bmTargetInput, 2, 1)
+        option_layout.addWidget(self.mmButton, 3, 0)
+        option_layout.addWidget(self.mmTargetInput, 3, 1)
+        option_layout.addWidget(self.ssButton, 4, 0)
+        option_layout.addWidget(self.ssLimitInput, 4, 1)
         emulator_tab_layout.addLayout(option_layout)
 
         # Text Display
@@ -243,9 +253,6 @@ class EmulatorTab(QWidget):
         # Buttons
         bottom_buttons_layout = QHBoxLayout(self)
         bottom_buttons_layout.setContentsMargins(45, 0, 45, 0)
-        self.remove_button = QPushButton('Remove', self)
-        self.remove_button.clicked.connect(self.remove_tab)
-        bottom_buttons_layout.addWidget(self.remove_button)
         self.refresh_button = QPushButton('Refresh', self)
         self.refresh_button.clicked.connect(self.toggle_bot)
         bottom_buttons_layout.addWidget(self.refresh_button)
@@ -274,11 +281,6 @@ class EmulatorTab(QWidget):
         self.mmTargetInput.setEnabled(button_id == 1)
         self.ssLimitInput.setEnabled(button_id == 2)
 
-    def remove_tab(self):
-        if self.worker_thread and self.worker_thread.isRunning():
-            self.worker_thread.terminate()
-        self.delete_callback(self.client)
-
     def toggle_bot(self):
         # Start Refreshing
         if not self.refreshing:
@@ -299,17 +301,17 @@ class EmulatorTab(QWidget):
 
             if self.worker_thread.exception:
                 self.log_text_field.append(f'Stopped')
-                self.log_text_field.append(f'- Reason: {self.worker_thread.exception}')
+                self.log_text_field.append(f'| Reason: {self.worker_thread.exception}')
             else:
                 self.log_text_field.append(f'Finished')
-            self.log_text_field.append(f'- Gold Spent: {self.bot.gold_start - self.bot.gold}')
-            self.log_text_field.append(f'- Skystones Spent: {self.bot.ss_start - self.bot.ss}')
+            self.log_text_field.append(f'| Gold Spent: {self.bot.gold_start - self.bot.gold}')
+            self.log_text_field.append(f'| Skystones Spent: {self.bot.ss_start - self.bot.ss}')
 
             self.refresh_button.setText('Refresh')
 
         self.refreshing = not self.refreshing
         self.scan_button.setEnabled(not self.refreshing)
-        self.dispatch_checkbox.setEnabled(not self.refreshing)
+        self.gear_checkbox.setEnabled(not self.refreshing)
         self.change_option()
 
     def update_log(self):
@@ -321,7 +323,7 @@ class EmulatorTab(QWidget):
         hours, remainder = divmod(runtime.seconds, 3600)
         minutes, seconds = divmod(remainder, 60)
         runtime = f'{hours:02}:{minutes:02}:{seconds:02}'
-        self.log_text_field.append(f'Refreshing {runtime}')
+        self.log_text_field.append(f'Refreshing [{runtime}]')
 
         bm_count = self.bot.currencies["bm"]["count"]
         mm_count = self.bot.currencies["mm"]["count"]
@@ -331,9 +333,9 @@ class EmulatorTab(QWidget):
         bookmarks_str = f'{bm_count}/{stop_amount}' if stop_currency == "bm" and stop_amount != 0 else f'{bm_count}'
         mystic_medals_str = f'{mm_count}/{stop_amount}' if stop_currency == "mm" and stop_amount != 0 else f'{mm_count}'
 
-        self.log_text_field.append(f'- Bookmarks: {bookmarks_str}')
-        self.log_text_field.append(f'- Mystic Medals: {mystic_medals_str}')
-        self.log_text_field.append(f'- Refreshes: {self.bot.refreshes}')
+        self.log_text_field.append(f'| Bookmarks: {bookmarks_str}')
+        self.log_text_field.append(f'| Mystic Medals: {mystic_medals_str}')
+        self.log_text_field.append(f'| Refreshes: {self.bot.refreshes}')
 
     def get_values(self):
         stop_condition = self.radio_button_group.checkedId()
@@ -342,8 +344,8 @@ class EmulatorTab(QWidget):
         return {
             "gold": int(self.goldInput.text() or 0),
             "ss": int(self.ssInput.text() or 0),
-            "auto_dispatch": self.dispatch_checkbox.isChecked(),
-            "stop_condition": {"currency": currency, "amount": int(amount or 0)}
+            "pause_on_gear": self.gear_checkbox.isChecked(),
+            "stop_condition": {"currency": currency, "amount": int(amount or 0)},
         }
 
 
@@ -366,6 +368,6 @@ class worker(QThread):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    window = MyWindow()
+    window = Window()
     window.show()
     sys.exit(app.exec())

@@ -2,8 +2,8 @@ import aircv as ac
 import easyocr
 
 
-def locate_image(screenshot, reference):
-    result = ac.find_template(screenshot, ac.imread(f"images/{reference}"), 0.90)
+def locate_image(screenshot, reference, threshold):
+    result = ac.find_template(screenshot, ac.imread(f"images/{reference}"), threshold)
     return result['result'][:2] if result else None
 
 
@@ -18,11 +18,11 @@ def scan(ss):
     ss_img = ac.imread('images/ss.png')
     bag_img = ac.imread('images/bag.png')
 
-    result_gold = ac.find_template(cropped_ss, gold_img, 0.90)
-    result_ss = ac.find_template(cropped_ss, ss_img, 0.90)
-    result_bag = ac.find_template(cropped_ss, bag_img, 0.90)
+    result_gold = ac.find_template(cropped_ss, gold_img)
+    result_ss = ac.find_template(cropped_ss, ss_img)
+    result_bag = ac.find_template(cropped_ss, bag_img)
 
-    if result_gold is not None and result_ss is not None:
+    if all(result is not None for result in [result_gold, result_ss, result_bag]):
 
         # Get the rectangles from the results
         rect_gold = result_gold['rectangle']

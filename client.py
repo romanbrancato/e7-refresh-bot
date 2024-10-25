@@ -7,19 +7,19 @@ from numpy import asarray
 # The following functions are tailored for ldplayer as adb.device_list() always returns ld devices serials as
 # emulator-####. However, connecting using that is much slower than parsing the port then connecting directly to the
 # address 1 port above it. If this were to be changed to be used with other emulators: adb.connect(device.serial)
-def adb_connect_all():
+def connect_all():
     connected_devices = []
     for device in adb.device_list():
         try:
             port = int(device.serial[-4:]) + 1
-            adb.connect(f"127.0.0.1:{port}", timeout=1)
+            adb.connect(f"127.0.0.1:{port}", timeout=0.1)
             connected_devices.append(f"127.0.0.1:{port}")
         except AdbTimeout as e:
             print(e)
     return connected_devices
 
 
-def adb_disconnect_all():
+def disconnect_all():
     disconnected_devices = []
     for device in adb.device_list():
         try:
@@ -44,3 +44,6 @@ class Client:
 
     def scroll_down(self):
         self.device.swipe(750, 360, 750, 180, 0.1)
+
+    def disconnect(self):
+        adb.disconnect(self.address)
