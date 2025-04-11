@@ -9,9 +9,10 @@ from PyQt6.QtWidgets import (
     QHBoxLayout, QFrame, QRadioButton, QButtonGroup, QGridLayout, QDoubleSpinBox, QTabBar
 )
 from PyQt6.QtGui import QIcon, QIntValidator
+from adbutils import adb, AdbError
 
 from bot import Bot
-from client import Client, connect_all, disconnect_all
+from client import Client
 from detection import scan
 
 
@@ -56,8 +57,8 @@ class Window(QWidget):
 
     def add_emulator_button_event(self):
         # Get the list of connected emulators
-        emulator_list = connect_all()
-        emulator_list = [emulator for emulator in emulator_list if emulator not in self.active_devices]
+        emulators = adb.device_list()
+        emulator_list = [emulator.serial for emulator in emulators if emulator.serial not in self.active_devices]
         if not emulator_list:
             # If no emulators are running
             QMessageBox.warning(self, 'Failed to Connect', 'No new running emulators')
@@ -68,6 +69,7 @@ class Window(QWidget):
 
             if ok:
                 # Create client instance
+                print(emulator)
                 client = Client(emulator)
                 # Create a new tab
                 new_tab = EmulatorTab(client)
@@ -95,7 +97,11 @@ class Window(QWidget):
         self.tab_widget.removeTab(index)
 
     def closeEvent(self, event):
-        disconnect_all()
+        for device in adb.device_list():
+            try:
+                adb.disconnect(serial=device.serial, timeout=0.1)
+            except AdbError as e:
+                print(e)
         event.accept()
 
 
@@ -366,7 +372,7 @@ class worker(QThread):
             self.emitFinished.emit()
 
 
-if __name__ == '__main__':
+def init():
     app = QApplication(sys.argv)
     window = Window()
     window.show()
