@@ -1,9 +1,14 @@
 # e7-refresh-bot
 
-Bot to automate shop refreshing with some fancy features
+Bot to automate shop refreshing.
 
-Need to implement
-* Multi-emulator support
-* Auto dispatch restart
-* Pause on red 85 gear? 
-  * Might not be possible to distinguish between 85 and <85 red gear
+## Setup
+- [Python](https://www.python.org/downloads/)
+- [LDPlayer](https://www.ldplayer.net/) emulator (Might work on any emulator but all testing was done on LDPlayer)
+- 960x540 resolution
+- Settings > Others > ADB Debugging = Enable local connection
+- Install requirements with `pip install -r requirements.txt`.
+
+## How to use
+1. Open secret shop
+2. Run the script with `python main.py`.
