@@ -1,0 +1,6 @@
+@echo off
+echo Checking and installing required packages...
+pip install -r requirements.txt
+echo Running main.py...
+python main.py
+pause
