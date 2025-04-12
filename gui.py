@@ -20,7 +20,7 @@ class Window(QWidget):
     def __init__(self):
         super().__init__()
 
-        self.active_devices = []
+        self.connected_emulators = []
 
         main_layout = QVBoxLayout(self)
 
@@ -58,7 +58,7 @@ class Window(QWidget):
     def add_emulator_button_event(self):
         # Get the list of connected emulators
         emulators = adb.device_list()
-        emulator_list = [emulator.serial for emulator in emulators if emulator.serial not in self.active_devices]
+        emulator_list = [emulator.serial for emulator in emulators if emulator.serial not in self.connected_emulators]
         if not emulator_list:
             # If no emulators are running
             QMessageBox.warning(self, 'Failed to Connect', 'No new running emulators')
@@ -69,7 +69,6 @@ class Window(QWidget):
 
             if ok:
                 # Create client instance
-                print(emulator)
                 client = Client(emulator)
                 # Create a new tab
                 new_tab = EmulatorTab(client)
@@ -78,7 +77,7 @@ class Window(QWidget):
                 # Focus on the new tab
                 self.tab_widget.setCurrentIndex(0)
                 # Add device to currently connected devices
-                self.active_devices.append(emulator)
+                self.connected_emulators.append(emulator)
 
     def update_delay(self, delay):
         for index in range(self.tab_widget.count()):
@@ -92,16 +91,14 @@ class Window(QWidget):
         tab = self.tab_widget.widget(index)
         if tab.worker_thread and tab.worker_thread.isRunning():
             tab.worker_thread.terminate()
-        tab.client.disconnect()
-        self.active_devices.remove(tab.client.address)
+        self.connected_emulators.remove(tab.client.serial)
         self.tab_widget.removeTab(index)
 
     def closeEvent(self, event):
-        for device in adb.device_list():
-            try:
-                adb.disconnect(serial=device.serial, timeout=0.1)
-            except AdbError as e:
-                print(e)
+        for index in range(self.tab_widget.count()):
+            tab = self.tab_widget.widget(index)
+            if isinstance(tab, EmulatorTab) and tab.worker_thread and tab.worker_thread.isRunning():
+                tab.worker_thread.terminate()
         event.accept()
 
 
@@ -115,14 +112,11 @@ class InfoTab(QWidget):
         info_layout = QVBoxLayout()
         self.info_text_field = QTextBrowser(self)
         self.info_text_field.setPlainText(
-            "Click 'Add Emulator Instance' to begin\n"
-            "(Currently only supports LDPlayer)\n\n"
-            "Notes:\n\n"
-            "For the bot to work:\n"
+            "Emulator Setup:\n\n"
             "| Resolution: 960x540(dpi 160)\n"
-            "| ADB debugging: Open local connection\n"
+            "| Settings>Others>ADB Debugging=LOCAL\n"
             "| Preferably enable 'Fixed Window Size'\n\n"
-            "Emulators will appear as their adb serial e.g. an LDPLayer instance at index 0 will appear as 127.0.0.1:5555\n\n"
+            
             "If you notice the bot missing currencies due to lag, increase the delay (0.3 is default)")
         info_layout.addWidget(self.info_text_field)
 
@@ -144,7 +138,7 @@ class InfoTab(QWidget):
         github_icon = QLabel(self)
         github_icon.setAlignment(Qt.AlignmentFlag.AlignHCenter)
         github_icon.setText(
-            '<a href="https://github.com/romanbrancato/e7-refresh-bot"><img src="images/github.png"/></a>')
+            '<a href="https://github.com/romanbrancato/e7-refresh-bot">Github</a>')
         github_icon.setOpenExternalLinks(True)
         info_layout.addWidget(github_icon)
 

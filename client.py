@@ -15,6 +15,3 @@ class Client:
 
     def scroll_down(self):
         self.device.swipe(750, 360, 750, 180, 0.1)
-
-    def disconnect(self):
-        adb.disconnect(self.serial)
