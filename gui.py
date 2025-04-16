@@ -1,6 +1,8 @@
 import sys
-from datetime import timedelta
+from datetime import datetime
 from time import time
+import csv
+import os
 
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt6.QtWidgets import (
@@ -9,7 +11,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout, QFrame, QRadioButton, QButtonGroup, QGridLayout, QDoubleSpinBox, QTabBar
 )
 from PyQt6.QtGui import QIcon, QIntValidator
-from adbutils import adb, AdbError
+from adbutils import adb
 
 from bot import Bot
 from client import Client
@@ -32,10 +34,10 @@ class Window(QWidget):
         main_layout.addWidget(self.tab_widget)
 
         # Info Tab
-        info_tab = InfoTab(self.update_delay)
-        self.tab_widget.addTab(info_tab, 'Info')
+        self.info_tab = InfoTab()
+        self.tab_widget.addTab(self.info_tab, 'Info')
         # Makes info tab unable to be closed
-        info_tab_index = self.tab_widget.indexOf(info_tab)
+        info_tab_index = self.tab_widget.indexOf(self.info_tab)
         close_button = self.tab_widget.tabBar().tabButton(info_tab_index, QTabBar.ButtonPosition.RightSide)
         if close_button:
             close_button.resize(0, 0)
@@ -71,21 +73,13 @@ class Window(QWidget):
                 # Create client instance
                 client = Client(emulator)
                 # Create a new tab
-                new_tab = EmulatorTab(client)
+                new_tab = EmulatorTab(client, self)
                 # Insert the new tab
                 self.tab_widget.insertTab(0, new_tab, f'{emulator}')
                 # Focus on the new tab
                 self.tab_widget.setCurrentIndex(0)
                 # Add device to currently connected devices
                 self.connected_emulators.append(emulator)
-
-    def update_delay(self, delay):
-        for index in range(self.tab_widget.count()):
-            tab = self.tab_widget.widget(index)
-            if isinstance(tab, EmulatorTab):
-                tab.delay = delay
-                if tab.bot:
-                    tab.bot.delay = delay
 
     def close_tab(self, index):
         tab = self.tab_widget.widget(index)
@@ -97,15 +91,14 @@ class Window(QWidget):
     def closeEvent(self, event):
         for index in range(self.tab_widget.count()):
             tab = self.tab_widget.widget(index)
-            if isinstance(tab, EmulatorTab) and tab.worker_thread and tab.worker_thread.isRunning():
+            if isinstance(tab, EmulatorTab) and tab.worker_thread:
                 tab.worker_thread.terminate()
         event.accept()
 
 
 class InfoTab(QWidget):
-    def __init__(self, update_delay_callback):
+    def __init__(self):
         super().__init__()
-        self.update_delay_callback = update_delay_callback
         info_tab_layout = QVBoxLayout(self)
 
         # Text Display
@@ -116,19 +109,18 @@ class InfoTab(QWidget):
             "| Resolution: 960x540(dpi 160)\n"
             "| Settings>Others>ADB Debugging=LOCAL\n"
             "| Preferably enable 'Fixed Window Size'\n\n"
-            
-            "If you notice the bot missing currencies due to lag, increase the delay (0.3 is default)")
+
+            "If you notice the bot missing currencies, try increasing the delay (0.3 is default)")
         info_layout.addWidget(self.info_text_field)
 
         # Delay Setting
-        global_option_layout = QGridLayout(self)
+        global_option_layout = QGridLayout()
         self.delayInputLabel = QLabel('Delay (secs)')
         self.delay_input = QDoubleSpinBox(self)
         self.delay_input.setDecimals(1)
         self.delay_input.setSingleStep(0.1)
         self.delay_input.setMaximum(2.0)
         self.delay_input.setValue(0.3)
-        self.delay_input.valueChanged.connect(self.update_delay)
         self.delay_input.setAlignment(Qt.AlignmentFlag.AlignRight)
         global_option_layout.addWidget(self.delayInputLabel, 0, 0)
         global_option_layout.addWidget(self.delay_input, 0, 1)
@@ -144,17 +136,14 @@ class InfoTab(QWidget):
 
         info_tab_layout.addLayout(info_layout)
 
-    def update_delay(self):
-        self.update_delay_callback(self.delay_input.value())
-
 
 class EmulatorTab(QWidget):
-    def __init__(self, client):
+    def __init__(self, client, window):
         super().__init__()
         self.client = client
+        self.window = window
 
         self.bot = None
-        self.delay = 0.3
         self.worker_thread = None
         self.refreshing = False
         self.last_toggle_time = None
@@ -163,7 +152,7 @@ class EmulatorTab(QWidget):
         int_validator = QIntValidator(self)
 
         # Input for Gold and Skystones
-        gold_ss_layout = QFormLayout(self)
+        gold_ss_layout = QFormLayout()
         gold_ss_layout.setSpacing(20)
         gold_ss_layout.setVerticalSpacing(5)
         gold_ss_layout.setContentsMargins(45, 0, 45, 0)
@@ -183,7 +172,7 @@ class EmulatorTab(QWidget):
         emulator_tab_layout.addLayout(gold_ss_layout)
 
         # Scan Button
-        scan_button_layout = QHBoxLayout(self)
+        scan_button_layout = QHBoxLayout()
         scan_button_layout.setContentsMargins(150, 0, 45, 0)
         self.scan_button = QPushButton('Scan', self)
         self.scan_button.clicked.connect(self.scan_currencies)
@@ -197,11 +186,11 @@ class EmulatorTab(QWidget):
         emulator_tab_layout.addWidget(divider)
 
         # Option Menu
-        option_layout = QGridLayout(self)
+        option_layout = QGridLayout()
         option_layout.setContentsMargins(45, 0, 45, 0)
 
         # Check Box
-        self.gear_checkbox = QCheckBox('Pause on Red 85 Gear', self)
+        self.gear_checkbox = QCheckBox('Stop on Red 85 Gear', self)
 
         # Radio Buttons
         self.radio_button_group = QButtonGroup(self)
@@ -214,7 +203,7 @@ class EmulatorTab(QWidget):
         self.mmButton.clicked.connect(self.change_option)
         self.radio_button_group.addButton(self.mmButton, 1)
 
-        self.ssButton = QRadioButton('Skytones')
+        self.ssButton = QRadioButton('Skystones')
         self.ssButton.clicked.connect(self.change_option)
         self.radio_button_group.addButton(self.ssButton, 2)
 
@@ -251,7 +240,7 @@ class EmulatorTab(QWidget):
         emulator_tab_layout.addLayout(log_layout)
 
         # Buttons
-        bottom_buttons_layout = QHBoxLayout(self)
+        bottom_buttons_layout = QHBoxLayout()
         bottom_buttons_layout.setContentsMargins(45, 0, 45, 0)
         self.refresh_button = QPushButton('Refresh', self)
         self.refresh_button.clicked.connect(self.toggle_bot)
@@ -266,6 +255,15 @@ class EmulatorTab(QWidget):
         self.log_timer = QTimer(self)
         self.log_timer.timeout.connect(self.update_log)
         self.log_timer.setInterval(100)
+
+        # Connect to the InfoTab's delay signal for dynamic updates
+        self.window.info_tab.delay_input.valueChanged.connect(
+            self.handle_delay_update
+        )
+
+    def handle_delay_update(self, delay):
+        if self.bot:
+            self.bot.delay = delay
 
     def scan_currencies(self):
         currencies = scan(self.client.capture_screen())
@@ -282,71 +280,134 @@ class EmulatorTab(QWidget):
         self.ssLimitInput.setEnabled(button_id == 2)
 
     def toggle_bot(self):
-        # Start Refreshing
         if not self.refreshing:
-
-            self.bot = Bot(self.client, self.delay, self.get_values())
-            self.worker_thread = worker(self.bot)
-            self.worker_thread.emitFinished.connect(self.toggle_bot)
-
-            self.worker_thread.start()
-            self.last_toggle_time = time()
-            self.log_timer.start()
-            self.refresh_button.setText('Stop')
-
-        # Stop Refreshing
+            self.start_refreshing()
         else:
-            self.worker_thread.terminate()
-            self.log_timer.stop()
-
-            if self.worker_thread.exception:
-                self.log_text_field.append(f'Stopped')
-                self.log_text_field.append(f'| Reason: {self.worker_thread.exception}')
-            else:
-                self.log_text_field.append(f'Finished')
-            self.log_text_field.append(f'| Gold Spent: {self.bot.gold_start - self.bot.gold}')
-            self.log_text_field.append(f'| Skystones Spent: {self.bot.ss_start - self.bot.ss}')
-
-            self.refresh_button.setText('Refresh')
+            self.stop_refreshing()
 
         self.refreshing = not self.refreshing
+        # Disable all inputs when refreshing
+        for btn in self.radio_button_group.buttons():
+            btn.setEnabled(not self.refreshing)
+        self.bmTargetInput.setEnabled(not self.refreshing and self.bmButton.isChecked())
+        self.mmTargetInput.setEnabled(not self.refreshing and self.mmButton.isChecked())
+        self.ssLimitInput.setEnabled(not self.refreshing and self.ssButton.isChecked())
         self.scan_button.setEnabled(not self.refreshing)
         self.gear_checkbox.setEnabled(not self.refreshing)
-        self.change_option()
+
+    def start_refreshing(self):
+        # Get values from input fields
+        stop_condition = self.radio_button_group.checkedId()
+        currency_map = {0: "bm", 1: "mm", 2: "ss"}
+        input_map = {0: self.bmTargetInput, 1: self.mmTargetInput, 2: self.ssLimitInput}
+
+        currency = currency_map[stop_condition]
+        amount = input_map[stop_condition].text()
+
+        config = {
+            "delay": self.window.info_tab.delay_input.value(),
+            "gold": int(self.goldInput.text() or 0),
+            "ss": int(self.ssInput.text() or 0),
+            "stop_condition": {"currency": currency, "amount": int(amount or 0), "red_gear": self.gear_checkbox.isChecked()},
+        }
+
+        self.bot = Bot(self.client, config)
+
+        self.worker_thread = worker(self.bot)
+        self.worker_thread.emitFinished.connect(self.toggle_bot)
+
+        self.worker_thread.start()
+        self.last_toggle_time = time()
+        self.log_timer.start()
+        self.refresh_button.setText('Stop')
+
+    def stop_refreshing(self):
+        self.worker_thread.terminate()
+        self.log_timer.stop()
+
+        # Calculate stats
+        bm_obtained = self.bot.currencies["bm"]["count"]
+        mm_obtained = self.bot.currencies["mm"]["count"]
+        refreshes = self.bot.refreshes
+
+        # Calculate time spent
+        time_spent_seconds = time() - self.last_toggle_time
+        hours, remainder = divmod(int(time_spent_seconds), 3600)
+        minutes, seconds = divmod(remainder, 60)
+        time_spent = f'{hours:02}:{minutes:02}:{seconds:02}'
+
+        # Display stats in log
+        if self.worker_thread.exception:
+            self.log_text_field.append(f'Stopped')
+            self.log_text_field.append(f'| Reason: {self.worker_thread.exception}')
+        else:
+            self.log_text_field.append(f'Finished')
+
+        # Log stats to CSV file
+
+        # Check if file exists to determine need to write headers
+        file_exists = os.path.isfile('results.csv')
+
+        current_date = datetime.now().strftime("%Y-%m-%d")
+
+        with open('results.csv', 'a', newline='') as csvfile:
+            fieldnames = ['Date', 'Refreshes', 'Bookmarks', 'Mystic Medals', 'Time Spent']
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+            # Write headers if file is new
+            if not file_exists:
+                writer.writeheader()
+
+            # Write data row
+            writer.writerow({
+                'Date': current_date,
+                'Refreshes': refreshes,
+                'Bookmarks': bm_obtained,
+                'Mystic Medals': mm_obtained,
+                'Time Spent': time_spent,
+            })
+
+        self.refresh_button.setText('Refresh')
 
     def update_log(self):
+        # Update input fields
         self.goldInput.setText(str(self.bot.gold))
         self.ssInput.setText(str(self.bot.ss))
+
+        # Clear previous log content
         self.log_text_field.clear()
 
-        runtime = timedelta(seconds=time() - self.last_toggle_time)
-        hours, remainder = divmod(runtime.seconds, 3600)
+        # Calculate runtime duration
+        elapsed_seconds = time() - self.last_toggle_time
+        hours, remainder = divmod(int(elapsed_seconds), 3600)
         minutes, seconds = divmod(remainder, 60)
-        runtime = f'{hours:02}:{minutes:02}:{seconds:02}'
-        self.log_text_field.append(f'Refreshing [{runtime}]')
+        runtime_str = f"{hours:02}:{minutes:02}:{seconds:02}"
 
-        bm_count = self.bot.currencies["bm"]["count"]
-        mm_count = self.bot.currencies["mm"]["count"]
+        # Get stop condition parameters
         stop_currency = self.bot.stop_condition["currency"]
         stop_amount = self.bot.stop_condition["amount"]
 
-        bookmarks_str = f'{bm_count}/{stop_amount}' if stop_currency == "bm" and stop_amount != 0 else f'{bm_count}'
-        mystic_medals_str = f'{mm_count}/{stop_amount}' if stop_currency == "mm" and stop_amount != 0 else f'{mm_count}'
+        # Format currency displays
+        bm_count = self.bot.currencies["bm"]["count"]
+        mm_count = self.bot.currencies["mm"]["count"]
 
-        self.log_text_field.append(f'| Bookmarks: {bookmarks_str}')
-        self.log_text_field.append(f'| Mystic Medals: {mystic_medals_str}')
-        self.log_text_field.append(f'| Refreshes: {self.bot.refreshes}')
+        bm_display = (f"{bm_count}/{stop_amount}"
+                      if stop_currency == "bm" and stop_amount != 0
+                      else f"{bm_count}")
+        mm_display = (f"{mm_count}/{stop_amount}"
+                      if stop_currency == "mm" and stop_amount != 0
+                      else f"{mm_count}")
 
-    def get_values(self):
-        stop_condition = self.radio_button_group.checkedId()
-        currency = "bm" if stop_condition == 0 else "mm" if stop_condition == 1 else "ss"
-        amount = self.bmTargetInput.text() if stop_condition == 0 else self.mmTargetInput.text() if stop_condition == 1 else self.ssLimitInput.text()
-        return {
-            "gold": int(self.goldInput.text() or 0),
-            "ss": int(self.ssInput.text() or 0),
-            "pause_on_gear": self.gear_checkbox.isChecked(),
-            "stop_condition": {"currency": currency, "amount": int(amount or 0)},
-        }
+        # Build log content
+        log_lines = [
+            f"Refreshing [{runtime_str}]",
+            f"| Refreshes: {self.bot.refreshes}",
+            f"| Bookmarks: {bm_display}",
+            f"| Mystic Medals: {mm_display}"
+        ]
+
+        # Update log display
+        self.log_text_field.setPlainText("\n".join(log_lines))
 
 
 class worker(QThread):
@@ -368,6 +429,7 @@ class worker(QThread):
 
 def init():
     app = QApplication(sys.argv)
+    app.setStyle('windowsvista')
     window = Window()
     window.show()
     sys.exit(app.exec())
