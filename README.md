@@ -4,9 +4,10 @@ Bot to automate shop refreshing.
 
 ## Setup
 - [Python](https://www.python.org/downloads/)
-- [LDPlayer](https://www.ldplayer.net/) emulator (Might work on any emulator but all testing was done on LDPlayer)
+- Any Android emulator
 - 960x540 resolution
 - Settings > Others > ADB Debugging = Enable local connection
+- Run `setup.bat` to create virtual environment and install dependencies
 
 ## How to use
 1. Open secret shop

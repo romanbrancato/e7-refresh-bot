@@ -110,7 +110,7 @@ class InfoTab(QWidget):
             "| Settings>Others>ADB Debugging=LOCAL\n"
             "| Preferably enable 'Fixed Window Size'\n\n"
 
-            "If you notice the bot missing currencies due to lag, increase the delay (0.3 is default)")
+            "If you notice the bot missing currencies, try increasing the delay (0.3 is default)")
         info_layout.addWidget(self.info_text_field)
 
         # Delay Setting
