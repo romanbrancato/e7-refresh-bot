@@ -108,9 +108,7 @@ class Bot:
                     refresh_confirm = locate_image(screenshot, "refresh_confirm.png", 0.90)
 
                 # Wait for the refresh to complete
-                sleep(self.delay * 2)
-                screenshot = self.client.capture_screen()
-                refresh_success = locate_image(screenshot, "refresh_success.png", 0.90)
+                refresh_success = None
                 while not refresh_success:
                     sleep(0.1)
                     screenshot = self.client.capture_screen()
