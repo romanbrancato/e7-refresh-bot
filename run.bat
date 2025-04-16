@@ -1,5 +1,4 @@
 @echo off
-echo Starting script...
 
 REM Check if virtual environment directory exists
 if not exist ".\venv\Scripts\python.exe" (
@@ -10,7 +9,5 @@ if not exist ".\venv\Scripts\python.exe" (
     exit /b 1
 )
 
-REM If we get here, the environment exists, so run the script
-.\venv\Scripts\python main.py
-
-pause
+start "" .\venv\Scripts\pythonw.exe main.py
+exit
