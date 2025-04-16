@@ -11,9 +11,13 @@ if errorlevel 1 (
 )
 
 echo Installing dependencies...
+echo This may take some time, the window will close when done.
+echo.
+timeout /t 3 /nobreak > nul
+
 .\venv\Scripts\pip install -r requirements.txt
 if errorlevel 1 (
-    echo Error: Failed to install dependencies. Check requirements.txt.
+    echo Error: Failed to install dependencies.
     pause
     exit /b 1
 )
