@@ -3,7 +3,8 @@
 Bot to automate shop refreshing.
 
 ## Setup
-- [Python](https://www.python.org/downloads/)
+
+- [Python](https://www.python.org/downloads/) (ADD TO PATH)
 - Any Android emulator
 - 960x540 resolution
 - Settings > Others > ADB Debugging = Enable local connection
