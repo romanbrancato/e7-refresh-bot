@@ -5,9 +5,9 @@ Bot to automate shop refreshing.
 ## Setup
 
 - [Python](https://www.python.org/downloads/) (ADD TO PATH)
-- Any Android emulator
+- Any Android emulator (Does not work with Google Play or PC Client)
 - 960x540 resolution
-- Settings > Others > ADB Debugging = Enable local connection
+- ADB Debugging Enabled
 - Run `setup.bat` to create virtual environment and install dependencies
 
 ## How to use
