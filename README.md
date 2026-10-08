@@ -8,7 +8,6 @@ Bot to automate shop refreshing.
 - Any Android emulator (Does not work with Google Play or PC Client)
 - 960x540 resolution
 - ADB Debugging Enabled
-- Run `setup.bat` to create virtual environment and install dependencies
 
 ## How to use
 1. Open secret shop
