@@ -1,5 +1,4 @@
 PyQt6
 adbutils
 numpy
-easyocr
-aircv
+opencv-python

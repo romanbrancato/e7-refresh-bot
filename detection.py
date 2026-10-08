@@ -1,40 +1,42 @@
-import aircv as ac
-import easyocr
+import cv2
 
 
-def locate_image(screenshot, reference, threshold):
-    result = ac.find_template(screenshot, ac.imread(f"images/{reference}"), threshold)
-    return result['result'][:2] if result else None
+def locate_image(screenshot, reference, threshold, edges=False):
+    # Load the reference image
+    reference_img = cv2.imread(f"images/{reference}")
 
+    if edges:
+        # Convert to grayscale and apply edge detection
+        screenshot_gray = cv2.cvtColor(screenshot, cv2.COLOR_BGR2GRAY)
+        reference_gray = cv2.cvtColor(reference_img, cv2.COLOR_BGR2GRAY)
+        screenshot_processed = cv2.Canny(screenshot_gray, 50, 150)
+        reference_processed = cv2.Canny(reference_gray, 50, 150)
+    else:
+        # Convert to grayscale for template matching
+        screenshot_processed = cv2.cvtColor(screenshot, cv2.COLOR_BGR2GRAY)
+        reference_processed = cv2.cvtColor(reference_img, cv2.COLOR_BGR2GRAY)
 
-def scan(ss):
-    crop_value = 8  # 8% of ss height
-    height = int(ss.shape[0] * (crop_value / 100))
+    # Template matching
+    result_match = cv2.matchTemplate(screenshot_processed, reference_processed, cv2.TM_CCOEFF_NORMED)
+    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result_match)
 
-    # Crop the screenshot so only the top gold and ss symbol are visible
-    cropped_ss = ss[:height, :]
+    # Check if match is above threshold
+    result = None
+    if max_val >= threshold:
+        h, w = reference_processed.shape
+        center_x = max_loc[0] + w // 2
+        center_y = max_loc[1] + h // 2
 
-    gold_img = ac.imread('images/gold.png')
-    ss_img = ac.imread('images/ss.png')
-    bag_img = ac.imread('images/bag.png')
+        result = {
+            'result': (center_x, center_y),
+            'rectangle': [
+                (max_loc[0], max_loc[1]),
+                (max_loc[0], max_loc[1] + h),
+                (max_loc[0] + w, max_loc[1] + h),
+                (max_loc[0] + w, max_loc[1])
+            ],
+            'confidence': max_val
+        }
 
-    result_gold = ac.find_template(cropped_ss, gold_img)
-    result_ss = ac.find_template(cropped_ss, ss_img)
-    result_bag = ac.find_template(cropped_ss, bag_img)
+    return (result['result'] if result else None), max_val
 
-    if all(result is not None for result in [result_gold, result_ss, result_bag]):
-
-        # Get the rectangles from the results
-        rect_gold = result_gold['rectangle']
-        rect_ss = result_ss['rectangle']
-        rect_bag = result_bag['rectangle']
-
-        # Crop the image to isolate the region between the two icons
-        roi_gold = cropped_ss[:, rect_gold[0][0]:rect_ss[2][0]]
-        roi_ss = cropped_ss[:, rect_ss[0][0]:rect_bag[2][0]]
-
-        reader = easyocr.Reader(['en'])
-        gold = reader.readtext(roi_gold)
-        ss = reader.readtext(roi_ss)
-
-        return gold[0][1].replace(",", ""), ss[0][1].replace(",", "")

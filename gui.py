@@ -7,15 +7,14 @@ import os
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QTabWidget, QPushButton, QLabel,
-    QTextBrowser, QInputDialog, QMessageBox, QLineEdit, QCheckBox, QFormLayout,
-    QHBoxLayout, QFrame, QRadioButton, QButtonGroup, QGridLayout, QDoubleSpinBox, QTabBar
+    QTextBrowser, QInputDialog, QMessageBox, QLineEdit, QCheckBox,
+    QHBoxLayout, QComboBox, QGridLayout, QDoubleSpinBox, QTabBar
 )
 from PyQt6.QtGui import QIcon, QIntValidator
 from adbutils import adb
 
 from bot import Bot
 from client import Client
-from detection import scan
 
 
 class Window(QWidget):
@@ -151,85 +150,44 @@ class EmulatorTab(QWidget):
         emulator_tab_layout = QVBoxLayout(self)
         int_validator = QIntValidator(self)
 
-        # Input for Gold and Skystones
-        gold_ss_layout = QFormLayout()
-        gold_ss_layout.setSpacing(20)
-        gold_ss_layout.setVerticalSpacing(5)
-        gold_ss_layout.setContentsMargins(45, 0, 45, 0)
-
-        self.goldInputLabel = QLabel('Gold')
-        self.goldInput = QLineEdit(self)
-        self.goldInput.setValidator(int_validator)
-        self.goldInput.setAlignment(Qt.AlignmentFlag.AlignRight)
-        gold_ss_layout.addRow(self.goldInputLabel, self.goldInput)
-
-        self.ssInputLabel = QLabel('Skystones')
-        self.ssInput = QLineEdit(self)
-        self.ssInput.setValidator(int_validator)
-        self.ssInput.setAlignment(Qt.AlignmentFlag.AlignRight)
-        gold_ss_layout.addRow(self.ssInputLabel, self.ssInput)
-
-        emulator_tab_layout.addLayout(gold_ss_layout)
-
-        # Scan Button
-        scan_button_layout = QHBoxLayout()
-        scan_button_layout.setContentsMargins(150, 0, 45, 0)
-        self.scan_button = QPushButton('Scan', self)
-        self.scan_button.clicked.connect(self.scan_currencies)
-        scan_button_layout.addWidget(self.scan_button)
-        emulator_tab_layout.addLayout(scan_button_layout)
-
-        # Divider
-        divider = QFrame(self)
-        divider.setFrameShape(QFrame.Shape.HLine)
-        divider.setFrameShadow(QFrame.Shadow.Sunken)
-        emulator_tab_layout.addWidget(divider)
-
         # Option Menu
         option_layout = QGridLayout()
         option_layout.setContentsMargins(45, 0, 45, 0)
 
+        # Stop Condition Dropdown
+        self.stop_label = QLabel('Choose Stop Condition', self)
+        self.stop_dropdown = QComboBox(self)
+        self.stop_dropdown.addItem('Bookmarks', 'bm')
+        self.stop_dropdown.addItem('Mystic Medals', 'mm')
+        self.stop_dropdown.addItem('Skystones', 'ss')
+        self.stop_dropdown.addItem('Gold', 'gold')
+        self.stop_dropdown.currentIndexChanged.connect(self.change_option)
+
+        self.amountInput = QLineEdit(self)
+        self.amountInput.setValidator(int_validator)
+        self.amountInput.setAlignment(Qt.AlignmentFlag.AlignRight)
+
+        # Current skystones/gold, only shown for the limit options
+        self.currentLabel = QLabel('Current', self)
+        self.currentInput = QLineEdit(self)
+        self.currentInput.setValidator(int_validator)
+        self.currentInput.setAlignment(Qt.AlignmentFlag.AlignRight)
+
         # Check Box
         self.gear_checkbox = QCheckBox('Stop on Red 85 Gear', self)
 
-        # Radio Buttons
-        self.radio_button_group = QButtonGroup(self)
-        self.bmButton = QRadioButton('Bookmarks')
-        self.bmButton.clicked.connect(self.change_option)
-        self.bmButton.setChecked(True)
-        self.radio_button_group.addButton(self.bmButton, 0)
+        # Keep the space reserved when hidden so the log box doesn't resize
+        for widget in (self.currentLabel, self.currentInput):
+            size_policy = widget.sizePolicy()
+            size_policy.setRetainSizeWhenHidden(True)
+            widget.setSizePolicy(size_policy)
 
-        self.mmButton = QRadioButton('Mystic Medals')
-        self.mmButton.clicked.connect(self.change_option)
-        self.radio_button_group.addButton(self.mmButton, 1)
-
-        self.ssButton = QRadioButton('Skystones')
-        self.ssButton.clicked.connect(self.change_option)
-        self.radio_button_group.addButton(self.ssButton, 2)
-
-        # Radio Button Inputs
-        self.bmTargetInput = QLineEdit(self)
-        self.bmTargetInput.setValidator(int_validator)
-        self.bmTargetInput.setAlignment(Qt.AlignmentFlag.AlignRight)
-        self.bmTargetInput.setPlaceholderText('Target')
-
-        self.mmTargetInput = QLineEdit(self)
-        self.mmTargetInput.setValidator(int_validator)
-        self.mmTargetInput.setAlignment(Qt.AlignmentFlag.AlignRight)
-        self.mmTargetInput.setPlaceholderText('Target')
-
-        self.ssLimitInput = QLineEdit(self)
-        self.ssLimitInput.setValidator(int_validator)
-        self.ssLimitInput.setAlignment(Qt.AlignmentFlag.AlignRight)
-        self.ssLimitInput.setPlaceholderText('Limit')
-
-        option_layout.addWidget(self.gear_checkbox, 1, 0, 1, 2)
-        option_layout.addWidget(self.bmButton, 2, 0)
-        option_layout.addWidget(self.bmTargetInput, 2, 1)
-        option_layout.addWidget(self.mmButton, 3, 0)
-        option_layout.addWidget(self.mmTargetInput, 3, 1)
-        option_layout.addWidget(self.ssButton, 4, 0)
-        option_layout.addWidget(self.ssLimitInput, 4, 1)
+        option_layout.addWidget(self.stop_label, 0, 0, 1, 2)
+        option_layout.addWidget(self.stop_dropdown, 1, 0)
+        option_layout.addWidget(self.amountInput, 1, 1)
+        option_layout.addWidget(self.currentLabel, 2, 0)
+        option_layout.addWidget(self.currentInput, 2, 1)
+        option_layout.addWidget(self.gear_checkbox, 3, 0, 1, 2)
         emulator_tab_layout.addLayout(option_layout)
 
         # Text Display
@@ -237,6 +195,12 @@ class EmulatorTab(QWidget):
         log_layout.setContentsMargins(45, 0, 45, 0)
         self.log_text_field = QTextBrowser(self)
         log_layout.addWidget(self.log_text_field)
+
+        # Current bot action
+        self.status_field = QLineEdit(self)
+        self.status_field.setReadOnly(True)
+        self.status_field.setText('Idle')
+        log_layout.addWidget(self.status_field)
         emulator_tab_layout.addLayout(log_layout)
 
         # Buttons
@@ -249,7 +213,7 @@ class EmulatorTab(QWidget):
 
         self.setLayout(emulator_tab_layout)
 
-        # Set initial state for radio buttons
+        # Set initial state for option inputs
         self.change_option()
 
         self.log_timer = QTimer(self)
@@ -265,50 +229,45 @@ class EmulatorTab(QWidget):
         if self.bot:
             self.bot.delay = delay
 
-    def scan_currencies(self):
-        currencies = scan(self.client.capture_screen())
-        if currencies:
-            self.goldInput.setText(currencies[0])
-            self.ssInput.setText(currencies[1])
-        else:
-            self.log_text_field.append("Scan failed to locate currencies")
-
     def change_option(self):
-        button_id = self.radio_button_group.checkedId()
-        self.bmTargetInput.setEnabled(button_id == 0)
-        self.mmTargetInput.setEnabled(button_id == 1)
-        self.ssLimitInput.setEnabled(button_id == 2)
+        is_limit = self.stop_dropdown.currentData() in ('ss', 'gold')
+        self.amountInput.setPlaceholderText('Limit' if is_limit else 'Target')
+        self.currentLabel.setVisible(is_limit)
+        self.currentInput.setVisible(is_limit)
+        self.currentInput.setPlaceholderText(self.stop_dropdown.currentText())
+        self.currentInput.clear()
 
     def toggle_bot(self):
         if not self.refreshing:
-            self.start_refreshing()
+            if not self.start_refreshing():
+                return
         else:
             self.stop_refreshing()
 
         self.refreshing = not self.refreshing
         # Disable all inputs when refreshing
-        for btn in self.radio_button_group.buttons():
-            btn.setEnabled(not self.refreshing)
-        self.bmTargetInput.setEnabled(not self.refreshing and self.bmButton.isChecked())
-        self.mmTargetInput.setEnabled(not self.refreshing and self.mmButton.isChecked())
-        self.ssLimitInput.setEnabled(not self.refreshing and self.ssButton.isChecked())
-        self.scan_button.setEnabled(not self.refreshing)
+        self.stop_dropdown.setEnabled(not self.refreshing)
+        self.amountInput.setEnabled(not self.refreshing)
+        self.currentInput.setEnabled(not self.refreshing)
         self.gear_checkbox.setEnabled(not self.refreshing)
 
     def start_refreshing(self):
         # Get values from input fields
-        stop_condition = self.radio_button_group.checkedId()
-        currency_map = {0: "bm", 1: "mm", 2: "ss"}
-        input_map = {0: self.bmTargetInput, 1: self.mmTargetInput, 2: self.ssLimitInput}
+        currency = self.stop_dropdown.currentData()
+        amount = int(self.amountInput.text() or 0)
 
-        currency = currency_map[stop_condition]
-        amount = input_map[stop_condition].text()
+        current = None
+        if currency in ('ss', 'gold'):
+            if not self.currentInput.text():
+                self.log_text_field.append(f'Enter your current {self.stop_dropdown.currentText().lower()}')
+                return False
+            current = int(self.currentInput.text())
 
         config = {
             "delay": self.window.info_tab.delay_input.value(),
-            "gold": int(self.goldInput.text() or 0),
-            "ss": int(self.ssInput.text() or 0),
-            "stop_condition": {"currency": currency, "amount": int(amount or 0), "red_gear": self.gear_checkbox.isChecked()},
+            "ss": current if currency == 'ss' else None,
+            "gold": current if currency == 'gold' else None,
+            "stop_condition": {"currency": currency, "amount": amount, "red_gear": self.gear_checkbox.isChecked()},
         }
 
         self.bot = Bot(self.client, config)
@@ -320,6 +279,7 @@ class EmulatorTab(QWidget):
         self.last_toggle_time = time()
         self.log_timer.start()
         self.refresh_button.setText('Stop')
+        return True
 
     def stop_refreshing(self):
         self.worker_thread.terminate()
@@ -367,12 +327,15 @@ class EmulatorTab(QWidget):
                 'Time Spent': time_spent,
             })
 
+        self.status_field.setText('Idle')
         self.refresh_button.setText('Refresh')
 
     def update_log(self):
-        # Update input fields
-        self.goldInput.setText(str(self.bot.gold))
-        self.ssInput.setText(str(self.bot.ss))
+        # Update current skystones/gold field
+        if self.bot.ss is not None:
+            self.currentInput.setText(str(self.bot.ss))
+        elif self.bot.gold is not None:
+            self.currentInput.setText(str(self.bot.gold))
 
         # Clear previous log content
         self.log_text_field.clear()
@@ -408,6 +371,7 @@ class EmulatorTab(QWidget):
 
         # Update log display
         self.log_text_field.setPlainText("\n".join(log_lines))
+        self.status_field.setText(self.bot.status)
 
 
 class worker(QThread):
