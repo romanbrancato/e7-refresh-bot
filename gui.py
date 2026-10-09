@@ -3,13 +3,14 @@ from datetime import datetime
 from time import time
 import csv
 import os
+import urllib.request
 
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QTabWidget, QPushButton, QLabel, QInputDialog, QMessageBox,
     QLineEdit, QCheckBox, QHBoxLayout, QComboBox, QGridLayout, QGroupBox, QTabBar
 )
-from PyQt6.QtGui import QIcon, QIntValidator
+from PyQt6.QtGui import QColor, QIcon, QIntValidator
 from adbutils import adb
 
 from bot import Bot
@@ -21,6 +22,9 @@ SETUP_NOTES = (
     "  Settings > Others > ADB Debugging = LOCAL\n"
     "  Preferably Enable 'Fixed Window Size'"
 )
+
+REPO_URL = 'https://github.com/romanbrancato/e7-refresh-bot'
+LATEST_VERSION_URL = 'https://raw.githubusercontent.com/romanbrancato/e7-refresh-bot/main/version.txt'
 
 # Status dot colors
 GREY, GREEN, AMBER, RED = '#8c8c8c', '#2ea043', '#e0a800', '#d1242f'
@@ -46,6 +50,7 @@ class Window(QWidget):
         # Info Tab
         self.info_tab = InfoTab()
         self.tab_widget.addTab(self.info_tab, 'Info')
+        self.info_tab.update_available.connect(self.show_update_on_tab)
         # Makes info tab unable to be closed
         info_tab_index = self.tab_widget.indexOf(self.info_tab)
         close_button = self.tab_widget.tabBar().tabButton(info_tab_index, QTabBar.ButtonPosition.RightSide)
@@ -58,12 +63,18 @@ class Window(QWidget):
         main_layout.addWidget(add_emulator_button)
 
         # Window Properties
-        self.resize(316, 420)
+        self.resize(316, 450)
         self.setWindowTitle('e7 Refresh Bot')
         icon_path = 'images\\covenant_bookmark.ico'
         self.setWindowIcon(QIcon(icon_path))
 
         self.setLayout(main_layout)
+
+    def show_update_on_tab(self):
+        # Mark the info tab so the update is noticed from any tab
+        index = self.tab_widget.indexOf(self.info_tab)
+        self.tab_widget.setTabText(index, 'Info ●')
+        self.tab_widget.tabBar().setTabTextColor(index, QColor(AMBER))
 
     def add_emulator_button_event(self):
         # Get the list of connected emulators
@@ -97,6 +108,10 @@ class Window(QWidget):
         self.tab_widget.removeTab(index)
 
     def closeEvent(self, event):
+        # Don't leave the update check running after the window is gone
+        if self.info_tab.update_checker.isRunning():
+            self.info_tab.update_checker.terminate()
+            self.info_tab.update_checker.wait()
         for index in range(self.tab_widget.count()):
             tab = self.tab_widget.widget(index)
             if isinstance(tab, EmulatorTab) and tab.worker_thread:
@@ -104,7 +119,26 @@ class Window(QWidget):
         event.accept()
 
 
+def read_version(text):
+    # "1.2" -> (1, 2) so versions compare numerically
+    return tuple(int(part) for part in text.strip().split('.'))
+
+
+class UpdateChecker(QThread):
+    # Fetches the latest version number from GitHub, emits it or None if it couldn't be checked
+    checked = pyqtSignal(object)
+
+    def run(self):
+        try:
+            with urllib.request.urlopen(LATEST_VERSION_URL, timeout=10) as response:
+                self.checked.emit(response.read().decode().strip())
+        except Exception:
+            self.checked.emit(None)
+
+
 class InfoTab(QWidget):
+    update_available = pyqtSignal()
+
     STEPS = ['Set Up The Emulator As Shown Below', 'Open The Secret Shop In Game',
              'Press Add Emulator Instance', 'Pick Your Options And Press Start']
     SETTINGS = [('Resolution', '960 × 540'), ('DPI', '160'), ('ADB Debugging', 'Local'), ('Fixed Window Size', 'Recommended')]
@@ -139,7 +173,41 @@ class InfoTab(QWidget):
         where.setStyleSheet('QLabel { color: #777; }')
         setup_layout.addWidget(where, len(self.SETTINGS), 0, 1, 2)
         layout.addWidget(setup_box)
+
+        # Version, checked against GitHub in the background
+        version_box = QGroupBox('Version', self)
+        version_layout = QGridLayout(version_box)
+        version_layout.setVerticalSpacing(6)
+        with open('version.txt') as version_file:
+            self.installed_version = version_file.read().strip()
+        version_layout.addWidget(QLabel('Installed', self), 0, 0)
+        installed = QLabel(f'<b>{self.installed_version}</b>', self)
+        installed.setAlignment(Qt.AlignmentFlag.AlignRight)
+        version_layout.addWidget(installed, 0, 1)
+        self.update_label = QLabel('Checking For Updates...', self)
+        self.update_label.setOpenExternalLinks(True)
+        version_layout.addWidget(self.update_label, 1, 0, 1, 2)
+        layout.addWidget(version_box)
         layout.addStretch(1)
+
+        self.update_checker = UpdateChecker(self)
+        self.update_checker.checked.connect(self.show_update_status)
+        self.update_checker.start()
+
+    def show_update_status(self, latest):
+        if latest is None:
+            self.update_label.setText(f'<span style="color:#777">Couldn\'t Check For Updates</span>')
+            return
+        try:
+            newer = read_version(latest) > read_version(self.installed_version)
+        except ValueError:
+            newer = False
+        if newer:
+            self.update_label.setText(f'<span style="color:{AMBER}">●</span>&nbsp; <b>Update Available: {latest}</b>'
+                                      f' &nbsp;<a href="{REPO_URL}">Download</a>')
+            self.update_available.emit()
+        else:
+            self.update_label.setText(f'<span style="color:{GREEN}">●</span>&nbsp; Up To Date')
 
 
 class EmulatorTab(QWidget):
