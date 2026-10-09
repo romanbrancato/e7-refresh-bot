@@ -16,6 +16,10 @@ class Bot:
     GEAR_ICON_X = 451
     GEAR_ICON_OFFSET = 41  # y distance from the "Equipment" label to the center of its row's icon
     CLOSE_MENU_COORD = (150, 150)  # Empty spot outside the acquired menu, tapping it closes the menu
+    # Before scrolling only the top two rows are bought, any lower and their greyed out buy buttons
+    # would still be on screen after scrolling and stop scroll_success from matching
+    TOP_ROWS_MAX_Y = 250
+    BANNER_TIME = 2.5  # Seconds the banner shown after a purchase covers the top row
 
     def __init__(self, client, config):
         self.client = client
@@ -40,6 +44,7 @@ class Bot:
         self.paused = False
         self.resume_event = Event()
         self.refreshes = 0
+        self.last_purchase = 0  # When the last purchase finished, its banner covers the top row for a while
         self.status = "Starting"  # Current action, shown in the GUI
 
     def locate(self, screenshot, reference, threshold, edges=False, columns=None):
@@ -53,25 +58,42 @@ class Bot:
         self.status = f"Clicking: {name}"
         self.client.click(point)
 
-    def wait_for(self, reference, threshold, timeout=None, edges=False, columns=None):
+    def wait_for(self, reference, threshold, timeout=None, edges=False, columns=None, settled=False):
         # Take screenshots until the image appears or the timeout passes
+        # If settled, the image must also be in the same spot twice in a row, for menus that ignore taps while moving
         start = time()
+        previous = None
         while True:
             screenshot = self.client.capture_screen()
             location = self.locate(screenshot, reference, threshold, edges, columns)
-            if location or (timeout is not None and time() - start >= timeout):
+            if location and (not settled or location == previous):
                 return location, screenshot
+            if timeout is not None and time() - start >= timeout:
+                return None, screenshot
+            previous = location
 
     def handle_refresh(self):
         scrolled = False
         screenshot = self.client.capture_screen()
         while self.continue_refreshing():
-            self.locate_and_buy(screenshot)
+            # Purchases made after the last scroll leave a banner over the top row of the refreshed shop
+            if not scrolled and self.wait_for_banner():
+                screenshot = self.client.capture_screen()
+            self.locate_and_buy(screenshot, None if scrolled else self.TOP_ROWS_MAX_Y)
             if not scrolled:
                 screenshot = self.perform_scroll()
             else:
                 screenshot = self.perform_refresh()
             scrolled = not scrolled
+
+    def wait_for_banner(self):
+        # Wait out the rest of the last purchase's banner, returns whether it waited
+        remaining = self.BANNER_TIME - (time() - self.last_purchase)
+        if remaining <= 0:
+            return False
+        self.status = f"Waiting: purchase banner ({remaining:.1f}s)"
+        sleep(remaining)
+        return True
 
     def continue_refreshing(self):
         currency = self.stop_condition["currency"]
@@ -93,14 +115,14 @@ class Bot:
             return True
         return self.gold - self.currencies[currency]["cost"] >= self.stop_condition["amount"]
 
-    def locate_and_buy(self, screenshot):
-        # Locate all available currencies
+    def locate_and_buy(self, screenshot, max_y=None):
+        # Locate all available currencies, only above max_y if given
         currency_locations = {}
 
         for currency in self.currencies.keys():
             if not self.currencies[currency]["bought"] and self.can_afford(currency):
                 location = self.locate(screenshot, f"{currency}.png", 0.80, columns=self.CURRENCY_COLUMN)
-                if location:
+                if location and (max_y is None or location[1] < max_y):
                     currency_locations[currency] = location
 
         # Buy any located currencies
@@ -135,16 +157,21 @@ class Bot:
             if self.gold is not None:
                 self.gold -= self.currencies[currency]["cost"]
             self.currencies[currency]["bought"] = True
+            self.last_purchase = time()
 
         if self.gear or self.epic_mode != "ignore":
-            self.handle_gear(screenshot)
+            self.handle_gear(screenshot, max_y)
 
-    def find_gear(self, screenshot):
-        # Unbought gear rows on screen as (label y, kind), top to bottom
+    def find_gear(self, screenshot, max_y=None):
+        # Unbought gear rows on screen as (label y, kind), top to bottom, only above max_y if given
         # kind is "gear" for non-epic, "epic_85" for level 85 epic, "epic" for lower level epic
         self.status = "Locating: equipment"
+        labels = locate_all_images(screenshot, "equipment.png", 0.85, self.GEAR_LABEL_COLUMN)
+        self.status = f"Locating: equipment ({len(labels)} found)"
         rows = []
-        for x, y in locate_all_images(screenshot, "equipment.png", 0.85, self.GEAR_LABEL_COLUMN):
+        for x, y in labels:
+            if max_y is not None and y >= max_y:
+                continue
             button_y = y + self.GEAR_BUY_BUTTON_OFFSET
 
             # Skip rows whose buy button is cut off at the bottom of the screen
@@ -153,14 +180,14 @@ class Bot:
 
             # Skip rows that were already bought, their stock shows 0/1 instead of 1/1
             stock_region = screenshot[button_y - 20:button_y + 20, 800:880]
-            if not locate_image(stock_region, "stock.png", 0.85)[0]:
+            if not self.locate(stock_region, "stock.png", 0.85):
                 continue
 
             # Epic gear has a red label, level 85 epic gear is the only gear priced at 1,400,000
             hue = text_hue(screenshot, x, y, 70, 19)
             if hue is None or 15 < hue < 165:
                 rows.append((y, "gear"))
-            elif locate_image(screenshot[y - 8:y + 28, 820:940], "red_price.png", 0.90)[0]:
+            elif self.locate(screenshot[y - 8:y + 28, 820:940], "red_price.png", 0.90):
                 rows.append((y, "epic_85"))
             else:
                 rows.append((y, "epic"))
@@ -177,11 +204,11 @@ class Bot:
                 return True
         return False
 
-    def handle_gear(self, screenshot):
+    def handle_gear(self, screenshot, max_y=None):
         # Deal with gear rows one at a time, rescanning after each since bought rows change
         while True:
             row = None
-            for label_y, kind in self.find_gear(screenshot):
+            for label_y, kind in self.find_gear(screenshot, max_y):
                 # Only level 85 epics are paused on or bought, lower level epics are left alone
                 if kind == "epic_85" and self.epic_mode != "ignore" and not self.is_handled(screenshot, label_y):
                     row = (label_y, True)
@@ -242,7 +269,7 @@ class Bot:
     def read_gear_details(self, label_y):
         # Hold down on the gear's icon to show its details, returns (equipment score, has speed, is boots)
         # None if the details never showed, the equipment score is None if it couldn't be read
-        self.status = "Reading: gear details"
+        self.status = "Holding: gear icon"
         self.client.press((self.GEAR_ICON_X, label_y + self.GEAR_ICON_OFFSET))
         es_label, screenshot = self.wait_for("es_label.png", 0.90, self.RETRY_TIMEOUT)
         self.client.release()
@@ -255,8 +282,12 @@ class Bot:
             return None
         # The value is right aligned at the end of the "Equipment Score" row
         x, y = es_label
+        self.status = "Reading: digits"
         es = read_number(screenshot[y - 12:y + 10, x + 92:x + 157])
-        return es, has_speed(screenshot, es_label), is_boots(screenshot, es_label)
+        self.status = "Locating: speed"
+        speed = has_speed(screenshot, es_label)
+        self.status = "Locating: epic_boots"
+        return es, speed, is_boots(screenshot, es_label)
 
     def buy_gear(self, label_y):
         # Open the buy menu, retrying until the confirmation is found
@@ -277,10 +308,11 @@ class Bot:
                     raise Exception("Insufficient Gold")
 
                 buy_confirm = self.locate(screenshot, "buy_gear.png", 0.90, columns=self.DIALOG_COLUMN)
+        self.last_purchase = time()
 
     def sell_gear(self):
-        # The acquired menu opens with a sell button
-        sell, _ = self.wait_for("sell_gear.png", 0.90)
+        # The acquired menu opens with a sell button, it slides up and ignores taps until it stops
+        sell, _ = self.wait_for("sell_gear.png", 0.90, settled=True)
 
         # Open the sell menu, retrying until the confirmation is found
         sell_confirm = None
@@ -345,7 +377,7 @@ class Bot:
     def perform_scroll(self):
         # Scroll, retrying if the bottom of the list isn't reached
         while True:
-            self.status = "Scrolling"
+            self.status = "Swiping: scroll down"
             self.client.scroll_down()
             scroll_success, screenshot = self.wait_for("scroll_success.png", 0.80, self.RETRY_TIMEOUT, edges=True)
             if scroll_success:
