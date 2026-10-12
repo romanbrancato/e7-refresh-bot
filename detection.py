@@ -51,8 +51,14 @@ def locate_image(screenshot, reference, threshold, edges=False, columns=None):
     return (result['result'] if result else None), max_val
 
 
-def locate_all_images(screenshot, reference, threshold, columns=None, spacing=20):
+def isolate_text(gray):
+    # Keep only small bright details like text, removing the shop's background lighting which pulses brighter and darker
+    return cv2.morphologyEx(gray, cv2.MORPH_TOPHAT, cv2.getStructuringElement(cv2.MORPH_RECT, (9, 9)))
+
+
+def locate_all_images(screenshot, reference, threshold, columns=None, spacing=20, text=False):
     # Find every match above the threshold, returns the top-left corners sorted top to bottom
+    # If text, only the bright text is compared so the background behind it doesn't matter
     x_offset = 0
     if columns:
         x_offset = columns[0]
@@ -60,6 +66,9 @@ def locate_all_images(screenshot, reference, threshold, columns=None, spacing=20
 
     screenshot_gray = cv2.cvtColor(screenshot, cv2.COLOR_BGR2GRAY)
     reference_gray = cv2.cvtColor(cv2.imread(f"images/{reference}"), cv2.COLOR_BGR2GRAY)
+    if text:
+        screenshot_gray = isolate_text(screenshot_gray)
+        reference_gray = isolate_text(reference_gray)
     result_match = cv2.matchTemplate(screenshot_gray, reference_gray, cv2.TM_CCOEFF_NORMED)
 
     matches = []
@@ -72,6 +81,15 @@ def locate_all_images(screenshot, reference, threshold, columns=None, spacing=20
         result_match[max(0, max_loc[1] - spacing):max_loc[1] + spacing, :] = -1
 
     return sorted(matches, key=lambda match: match[1])
+
+
+def vertical_shift(before, after, columns):
+    # How far the content between these x coordinates moved down from one screenshot to the next
+    before = cv2.cvtColor(before[:, columns[0]:columns[1]], cv2.COLOR_RGB2GRAY)
+    after = cv2.cvtColor(after[:, columns[0]:columns[1]], cv2.COLOR_RGB2GRAY)
+    top, bottom = before.shape[0] * 5 // 18, before.shape[0] * 13 // 18  # Middle strip, stays on screen after small moves
+    result = cv2.matchTemplate(after, before[top:bottom], cv2.TM_CCOEFF_NORMED)
+    return cv2.minMaxLoc(result)[3][1] - top
 
 
 def text_hue(screenshot, x, y, w, h):
